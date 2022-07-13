@@ -56,9 +56,10 @@ def center2corner(center):
 
 def IoU(rect1, rect2):
     """ caculate interection over union
+        原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
     Args:
-        rect1: (x1, y1, x2, y2)
-        rect2: (x1, y1, x2, y2)
+        rect1: (x1, y1, x2, y2), anchor
+        rect2: (x1, y1, x2, y2), target (can call it bbox?)
     Returns:
         iou
     """
