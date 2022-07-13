@@ -135,7 +135,7 @@ __C.DATASET.NEG = 0.2
 # improve tracking performance for otb100
 __C.DATASET.GRAY = 0.0
 
-__C.DATASET.NAMES = ('VID', 'COCO', 'DET', 'YOUTUBEBB')
+__C.DATASET.NAMES = ('VID', 'COCO', 'DET', 'YOUTUBEBB', 'CUSTOM')
 
 __C.DATASET.VID = CN()
 __C.DATASET.VID.ROOT = 'training_dataset/vid/crop511'
@@ -160,6 +160,12 @@ __C.DATASET.DET.ROOT = 'training_dataset/det/crop511'
 __C.DATASET.DET.ANNO = 'training_dataset/det/train.json'
 __C.DATASET.DET.FRAME_RANGE = 1
 __C.DATASET.DET.NUM_USE = -1
+
+__C.DATASET.CUSTOM = CN()
+__C.DATASET.CUSTOM.ROOT = 'data/train/TemplateMatchingData/train'
+__C.DATASET.CUSTOM.ANNO = 'data/train/TemplateMatchingData/train'
+__C.DATASET.CUSTOM.FRAME_RANGE = 1
+__C.DATASET.CUSTOM.NUM_USE = -1
 
 __C.DATASET.VIDEOS_PER_EPOCH = 600000
 # ------------------------------------------------------------------------ #
