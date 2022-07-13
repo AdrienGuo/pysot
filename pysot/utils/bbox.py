@@ -71,7 +71,7 @@ def IoU(rect1, rect2):
     xx2 = np.minimum(tx2, x2)
     yy2 = np.minimum(ty2, y2)
 
-    ww = np.maximum(0, xx2 - xx1)
+    ww = np.maximum(0, xx2 - xx1)       # 這裡的 0 可以拿掉吧??
     hh = np.maximum(0, yy2 - yy1)
 
     area = (x2-x1) * (y2-y1)
