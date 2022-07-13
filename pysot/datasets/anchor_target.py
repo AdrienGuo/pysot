@@ -22,6 +22,11 @@ class AnchorTarget:
                                           size=cfg.TRAIN.OUTPUT_SIZE)
 
     def __call__(self, target, size, neg=False):
+        """
+        Args:
+            target: box\n
+            size: cfg.TRAIN.OUTPUT_SIZE=25\n
+        """
         anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
 
         # -1 ignore 0 negative 1 positive
