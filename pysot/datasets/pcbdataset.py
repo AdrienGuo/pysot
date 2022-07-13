@@ -145,6 +145,13 @@ class PCBDataset():
         return self.get_image_anno(index, "template"), \
                self.get_image_anno(index, "search")
     
+    def get_neg_pair(self, typeName, index=None):
+        if typeName == "template":
+            return self.get_image_anno(index, "template")
+        elif typeName == "search":
+            index = np.random.randint(low=0, high=len(self.images))
+            return self.get_image_anno(index, "search")
+    
     def _get_bbox(self, image, shape):
         """
         Args:
@@ -161,8 +168,19 @@ class PCBDataset():
         return len(self.images)
 
     def __getitem__(self, index):
+        
+        gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
+        # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
+        neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
+
         # get one dataset
-        template, search = self.get_positive_pair(index)
+        # 這個 if 還需要修改成 template 和 search "一定" 不會互相對應到同一張圖片的
+        if neg:
+            template = self.get_neg_pair("template", index)
+            search = self.get_neg_pair("search")
+        else:
+            template, search = self.get_positive_pair(index)
+
         
         # get image
         template_image = cv2.imread(template[0])
@@ -173,13 +191,12 @@ class PCBDataset():
 
         # get bounding box
         # 先用 255*255 就好 (跑起來比較快)
-        template_box = self._get_bbox(template_image, template[1])
+        template_box = self._get_bbox(template_image, template[1])      # 暫時沒用
         search_box = self._get_bbox(search_image, search[1])
 
         # get labels
         cls, delta, delta_weight, overlap = self.anchor_target(
                 search_box, cfg.TRAIN.OUTPUT_SIZE, neg)
-        
         
         return
 
