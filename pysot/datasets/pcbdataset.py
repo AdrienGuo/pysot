@@ -160,6 +160,7 @@ class PCBDataset():
         """
         imh, imw = image.shape[:2]          # iamge 的 height, width
         cx, cy = imw//2, imh//2
+        print("test")
         w, h = imw * (shape[:, 2]-shape[:, 0]), imh * (shape[:, 3]-shape[:, 1])     # 將比例值乘以實際大小轉成實際位置的數值
         bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
         return bbox
