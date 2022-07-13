@@ -26,6 +26,11 @@ class AnchorTarget:
         Args:
             target: box\n
             size: cfg.TRAIN.OUTPUT_SIZE=25\n
+        Return:
+            cls: anchor 的類別 (-1 ignore, 0 negative, 1 positive)\n
+            delta: \n
+            delta_weight: \n
+            overlap: \n
         """
         anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
 
@@ -81,16 +86,19 @@ class AnchorTarget:
         delta[2] = np.log(tw / w)
         delta[3] = np.log(th / h)
 
+        # IoU 有改寫
         overlap = IoU([x1, y1, x2, y2], target)
+
+        # 去找最大值
 
         pos = np.where(overlap > cfg.TRAIN.THR_HIGH)
         neg = np.where(overlap < cfg.TRAIN.THR_LOW)
 
-        pos, pos_num = select(pos, cfg.TRAIN.POS_NUM)
+        pos, pos_num = select(pos, cfg.TRAIN.POS_NUM)           # 最多只會選 16 個 anchors 出來
         neg, neg_num = select(neg, cfg.TRAIN.TOTAL_NUM - cfg.TRAIN.POS_NUM)
 
-        cls[pos] = 1
-        delta_weight[pos] = 1. / (pos_num + 1e-6)
+        cls[pos] = 1        # 這裡的 pos 是 anchor 的 index，不太像 position 的意思
+        delta_weight[pos] = 1. / (pos_num + 1e-6)       # anchor 的數量越少, weight 越高 (why)
 
         cls[neg] = 0
         return cls, delta, delta_weight, overlap
