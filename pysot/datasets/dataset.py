@@ -244,6 +244,7 @@ class TrkDataset(Dataset):
         dataset, index = self._find_dataset(index)
 
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
+        # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
 
         # get one dataset
