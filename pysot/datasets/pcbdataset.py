@@ -46,12 +46,28 @@ class PCBDataset():
         self.template = template
         self.search = search
 
+        # data augmentation
+        self.template_aug = Augmentation(
+                cfg.DATASET.TEMPLATE.SHIFT,
+                cfg.DATASET.TEMPLATE.SCALE,
+                cfg.DATASET.TEMPLATE.BLUR,
+                cfg.DATASET.TEMPLATE.FLIP,
+                cfg.DATASET.TEMPLATE.COLOR
+            )
+        self.search_aug = Augmentation(
+                cfg.DATASET.SEARCH.SHIFT,
+                cfg.DATASET.SEARCH.SCALE,
+                cfg.DATASET.SEARCH.BLUR,
+                cfg.DATASET.SEARCH.FLIP,
+                cfg.DATASET.SEARCH.COLOR
+            )
+
     def _make_dataset(self, dir_path):
         """ 回傳資料
         Return:
-            images (list): [[path, 類別], ...]\n
-            template (list): \n
-            search (list): \n
+            images (list): [[path, 類別], ...]
+            template (list): 
+            search (list): 
         """
         images = []
         search = []         # search image 上 bbox 的座標
@@ -155,13 +171,14 @@ class PCBDataset():
     def _get_bbox(self, image, shape):
         """
         Args:
-            image: 實際影像\n
-            shape: bbox 的位置 ([x1, y1, x2, y2])，是比例值\n
+            image: 實際影像
+            shape: bbox 的位置 ([cx, cy, w, h])，是比例值
         """
-        imh, imw = image.shape[:2]          # iamge 的 height, width
-        cx, cy = imw//2, imh//2
-        print(shape)
-        w, h = imw * (shape[:, 2]-shape[:, 0]), imh * (shape[:, 3]-shape[:, 1])     # 將比例值乘以實際大小轉成實際位置的數值
+        # 是先高度再寬度 !!!
+        imh, imw = image.shape[:2]          # image 的 height, width
+        print(f"imh, imw: {imh}, {imw}")
+        cx, w = imw*shape[:, 0], imw*shape[:, 2]
+        cy, h = imh*shape[:, 1], imh*shape[:, 3]
         bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
         return bbox
     
@@ -172,6 +189,8 @@ class PCBDataset():
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
+        
+        neg = False     # 先不要有 negative pair
 
         # get one dataset
         # 這個 if 還需要修改成 template 和 search "一定" 不會互相對應到同一張圖片的
@@ -185,22 +204,31 @@ class PCBDataset():
         # get image
         template_image = cv2.imread(template[0])
         search_image = cv2.imread(search[0])
+        print(f"image path: {search[0]}")
         assert template_image is not None, f"error image: {template[0]}"
         # if template_image is None:
         #     print('error image:',template[0])
 
         # get bounding box
         # 先用 255*255 就好 (跑起來比較快)
-        # template_box = self._get_bbox(template_image, template[1])      # 暫時沒用
+        # template_box = self._get_bbox(template_image, template[1])
         search_box = self._get_bbox(search_image, search[1])
+        print(f"search_image shape: {search_image.shape}")
+        print(f"search_box:\n {search_box}")
+
+        search, bbox = self.search_aug(search_image,
+                                       search_box,
+                                       cfg.TRAIN.SEARCH_SIZE,
+                                       gray=gray)
+        print(f"adjust search_bbox: {bbox}")
 
         # get labels
         cls, delta, delta_weight, overlap = self.anchor_target(
-                search_box, cfg.TRAIN.OUTPUT_SIZE, neg)
+                bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
         
         return None
 
 if __name__ == "__main__":
     dataset = PCBDataset()
     dataset.__getitem__(2)
-    print("="*20 + " Done!! " + "="*20)
+    print("="*20 + " Done!! " + "="*20 + "\n")
