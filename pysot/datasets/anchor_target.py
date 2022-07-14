@@ -24,13 +24,13 @@ class AnchorTarget:
     def __call__(self, target, size, neg=False):
         """
         Args:
-            target: box\n
-            size: cfg.TRAIN.OUTPUT_SIZE=25\n
+            target: box
+            size: cfg.TRAIN.OUTPUT_SIZE=25
         Return:
-            cls: anchor 的類別 (-1 ignore, 0 negative, 1 positive)\n
-            delta: \n
-            delta_weight: \n
-            overlap: \n
+            cls: anchor 的類別 (-1 ignore, 0 negative, 1 positive)
+            delta: 
+            delta_weight: 
+            overlap: 
         """
         anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
 
@@ -81,6 +81,7 @@ class AnchorTarget:
         cx, cy, w, h = anchor_center[0], anchor_center[1], \
             anchor_center[2], anchor_center[3]
 
+        # 遇到多個 target 的問題了
         delta[0] = (tcx - cx) / w
         delta[1] = (tcy - cy) / h
         delta[2] = np.log(tw / w)
