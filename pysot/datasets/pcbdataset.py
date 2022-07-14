@@ -160,6 +160,7 @@ class PCBDataset():
         """
         imh, imw = image.shape[:2]          # iamge 的 height, width
         cx, cy = imw//2, imh//2
+        print(shape)
         w, h = imw * (shape[:, 2]-shape[:, 0]), imh * (shape[:, 3]-shape[:, 1])     # 將比例值乘以實際大小轉成實際位置的數值
         bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
         return bbox
@@ -168,7 +169,6 @@ class PCBDataset():
         return len(self.images)
 
     def __getitem__(self, index):
-        
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
@@ -191,7 +191,7 @@ class PCBDataset():
 
         # get bounding box
         # 先用 255*255 就好 (跑起來比較快)
-        template_box = self._get_bbox(template_image, template[1])      # 暫時沒用
+        # template_box = self._get_bbox(template_image, template[1])      # 暫時沒用
         search_box = self._get_bbox(search_image, search[1])
 
         # get labels
@@ -202,5 +202,5 @@ class PCBDataset():
 
 if __name__ == "__main__":
     dataset = PCBDataset()
-    dataset.__getitem__(0)
+    dataset.__getitem__(2)
     print("="*20 + " Done!! " + "="*20)
