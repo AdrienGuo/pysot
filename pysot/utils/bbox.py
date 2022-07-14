@@ -53,16 +53,60 @@ def center2corner(center):
         y2 = y + h * 0.5
         return x1, y1, x2, y2
 
+def target_overlaps(anchor, target):
+    """ caculate interection over union
+        原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
+        參考 Faster R-CNN: https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/utils/bbox.pyx
+    Args:
+        anchor: (), anchor
+        target: (), target (can call it bbox?)
+    Returns:
+        iou: (N, K) ndarray of overlap between anchor(N) and target(K)
+    """
+    # 把 anchor 拉成 [4, N]
+    anchor_flatten = np.reshape(anchor, (4, -1))
+    print(f"anchor_flatten shape: {anchor_flatten.shape}")
+    N = len(anchor_flatten[0])# number of anchor
+    K = len(target[0])# number of target
+    print(f"N: {N}, K: {K}")
+    overlaps = np.zeros((N, K), dtype=np.float32)
+
+    for k in range(K):
+        target_area = (target[2, k]-target[0, k]) * (target[3, k]-target[1, k])
+        assert target_area>0, f"target_area"
+        for n in range(N):
+            intersection_width = min(anchor_flatten[2, n], target[2, k]) - max(anchor_flatten[0, n], target[0, k])
+            intersection_height = min(anchor_flatten[3, n], target[3, k]) - max(anchor_flatten[1, n], target[1, k])
+            intersection_area = abs(intersection_width * intersection_height)
+            anchor_area = (anchor_flatten[2, n]-anchor_flatten[0, n]) * (anchor_flatten[3, n]-anchor_flatten[1, n])
+            ua = target_area + anchor_area - intersection_area
+            # assert ua>0, f"wrong" + \
+            #     f"{target_area}, {anchor_area}, {intersection_area}"
+            overlaps[n, k] = (intersection_width * intersection_height) / ua
+    # assert overlaps[overlaps<0] == [], f"overlaps has area smaller than 0!!!"       # 確保 iou 都大於 0
+    # assert overlaps[overlaps>1] == [], f"overlaps has area bigger than 0!!!"       # 確保 iou 都小於 1
+    # 這裡還是錯的，我覺得應該是因為 anchor 和 target 的尺度沒有搞好，所以會跑掉
+    print(f"overlaps shape: {overlaps.shape}")
+    
+    return overlaps
 
 def IoU(rect1, rect2):
     """ caculate interection over union
         原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
+        參考 Faster R-CNN: https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/utils/bbox.pyx
     Args:
         rect1: (x1, y1, x2, y2), anchor
         rect2: (x1, y1, x2, y2), target (can call it bbox?)
     Returns:
-        iou
+        iou: (N, K) ndarray of overlap between anchor(N) and target(K)
     """
+    N = len(rect1[0])# number of anchor
+    K = len(rect2[0])# number of target
+    print(K)
+    iou = np.zeros((N, K), dtype=np.float32)
+    iw, ih, box_area = 0, 0, 0
+    ua = 0
+
     # overlap
     x1, y1, x2, y2 = rect1[0], rect1[1], rect1[2], rect1[3]
     tx1, ty1, tx2, ty2 = rect2[0], rect2[1], rect2[2], rect2[3]
@@ -81,6 +125,34 @@ def IoU(rect1, rect2):
     iou = inter / (area + target_a - inter)
     return iou
 
+def target_delta(anchor, target, argmax):
+    """ 算每個 anchor 跟對應 target 的 delta
+        參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
+    Args:
+        anchor: (center)
+        target: (corner)
+    Return:
+        delta:
+    """
+    delta = np.zeros((4, argmax.shape[0]), dtype=np.float32)
+    anchor_flatten = np.reshape(anchor, (4, -1))
+    cx, cy, w, h = anchor_flatten[0], anchor_flatten[1], anchor_flatten[2], anchor_flatten[3]
+    print(f"cx: {cx.shape}")
+    tcx, tcy, tw, th = corner2center(target)
+    for i in range(argmax.shape[0]):
+        # Closest target (it might have IoU < 0.7)
+        index_closest = argmax[i]
+        tcx_closest = tcx[index_closest]
+        tcy_closest = tcy[index_closest]
+        tw_closest = tw[index_closest]
+        th_closest = th[index_closest]
+
+        delta[0] = (tcx_closest - cx) / w
+        # TODO
+
+    delta = np.reshape(delta, anchor.shape)
+
+    return delta
 
 def cxy_wh_2_rect(pos, sz):
     """ convert (cx, cy, w, h) to (x1, y1, w, h), 0-index
