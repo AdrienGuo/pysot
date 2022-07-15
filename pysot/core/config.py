@@ -11,6 +11,9 @@ __C = CN()
 
 cfg = __C
 
+# debug mode
+__C.DEBUG = True
+
 __C.META_ARC = "siamrpn_r50_l234_dwxcorr"
 
 __C.CUDA = True
