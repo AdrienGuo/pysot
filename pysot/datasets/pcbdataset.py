@@ -21,6 +21,9 @@ from pysot.core.config import cfg
 
 logger = logging.getLogger("global")
 
+# debug mode
+DEBUG = cfg.DEBUG
+
 # setting opencv
 pyv = sys.version[0]
 if pyv[0] == '3':
@@ -143,16 +146,16 @@ class PCBDataset():
         
         return images, template, search
     
-    def get_image_anno(self, index, typeName):
+    def get_image_anno(self, index, type):
         """ 
         Return:
-            imgage_path: \n
-            image_anno: \n
+            imgage_path: 
+            image_anno: 
         """
         image_path, _ = self.images[index]
-        if typeName=="template":
+        if type=="template":
             image_anno = self.template[index]
-        elif typeName=="search":
+        elif type=="search":
             image_anno = self.search[index]
         image_anno = np.stack(image_anno).astype(np.float32)        # 這要幹嘛? 回傳的image_anno不是只有一個物件嗎?
         return image_path, image_anno
@@ -161,14 +164,14 @@ class PCBDataset():
         return self.get_image_anno(index, "template"), \
                self.get_image_anno(index, "search")
     
-    def get_neg_pair(self, typeName, index=None):
-        if typeName == "template":
+    def get_neg_pair(self, type, index=None):
+        if type == "template":
             return self.get_image_anno(index, "template")
-        elif typeName == "search":
+        elif type == "search":
             index = np.random.randint(low=0, high=len(self.images))
             return self.get_image_anno(index, "search")
     
-    def _get_bbox(self, image, shape):
+    def _get_bbox(self, image, shape, type):
         """
         Args:
             image: 實際影像
@@ -176,9 +179,14 @@ class PCBDataset():
         """
         # 是先高度再寬度 !!!
         imh, imw = image.shape[:2]          # image 的 height, width
-        print(f"imh, imw: {imh}, {imw}")
-        cx, w = imw*shape[:, 0], imw*shape[:, 2]
-        cy, h = imh*shape[:, 1], imh*shape[:, 3]
+        if DEBUG:
+            print(f"imh, imw: {imh}, {imw}")
+        if type == "template":
+            cx, w = imw*shape[0], imw*shape[2]
+            cy, h = imh*shape[1], imh*shape[3]
+        elif type == "search":
+            cx, w = imw*shape[:, 0], imw*shape[:, 2]
+            cy, h = imh*shape[:, 1], imh*shape[:, 3]
         bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
         return bbox
     
@@ -186,6 +194,7 @@ class PCBDataset():
         return len(self.images)
 
     def __getitem__(self, index):
+        logger.debug("__getitem__")
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
@@ -204,29 +213,54 @@ class PCBDataset():
         # get image
         template_image = cv2.imread(template[0])
         search_image = cv2.imread(search[0])
-        print(f"image path: {search[0]}")
+        if DEBUG:
+            print(f"template image path: {template[0]}")
+            print(f"search image path: {search[0]}")
         assert template_image is not None, f"error image: {template[0]}"
-        # if template_image is None:
-        #     print('error image:',template[0])
-
+        
         # get bounding box
         # 先用 255*255 就好 (跑起來比較快)
-        # template_box = self._get_bbox(template_image, template[1])
-        search_box = self._get_bbox(search_image, search[1])
-        print(f"search_image shape: {search_image.shape}")
-        print(f"search_box:\n {search_box}")
+        template_box = self._get_bbox(template_image, template[1], "template")
+        search_box = self._get_bbox(search_image, search[1], "search")
+        if DEBUG:
+            print(f"search_image shape: {search_image.shape}")
+            print(f"search_box:\n {search_box}")
+        
+        # (image, bbox) is the return data type
+        template, _ = self.template_aug(template_image,
+                                        template_box,
+                                        cfg.TRAIN.EXEMPLAR_SIZE,
+                                        gray=gray)
 
-        search, bbox = self.search_aug(search_image,
+        search_image, bbox = self.search_aug(search_image,
                                        search_box,
                                        cfg.TRAIN.SEARCH_SIZE,
                                        gray=gray)
-        print(f"adjust search_bbox: {bbox}")
+        if DEBUG:
+            print(f"adjusted search_bbox: {bbox}")
+
+        """ 
+        savedimage_path = "./image_check/train/" + search[0].split("/")[-1]
+        cv2.imwrite(savedimage_path, search_image)
+        print(f"save image to: {savedimage_path}")
+        """
+        # TODO: 畫 bbox
 
         # get labels
         cls, delta, delta_weight, overlap = self.anchor_target(
                 bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
         
-        return None
+        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)
+        search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
+        
+        return {
+                'template': template_image,
+                'search': search_image,
+                'label_cls': cls,
+                'label_loc': delta,
+                'label_loc_weight': delta_weight,
+                'bbox': np.array(bbox)
+               }
 
 if __name__ == "__main__":
     dataset = PCBDataset()

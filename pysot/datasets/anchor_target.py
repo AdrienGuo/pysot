@@ -11,6 +11,7 @@ from pysot.core.config import cfg
 from pysot.utils.bbox import IoU, corner2center, target_overlaps, target_delta
 from pysot.utils.anchor import Anchors
 
+DEBUG = cfg.DEBUG
 
 class AnchorTarget:
     def __init__(self,):
@@ -83,23 +84,28 @@ class AnchorTarget:
 
         # 把 target 疊起來變成 [4, K]
         target_stack = np.stack((target[0], target[1], target[2], target[3]))
-        print(f"anchor_box shape: {anchor_box.shape}")
-        print(f"target_stack shape: {target_stack.shape}")
+        if DEBUG:
+            print(f"anchor_box shape: {anchor_box.shape}")
+            print(f"target_stack shape: {target_stack.shape}")
 
         # 多個 target 的 overlap 算法
         overlaps = target_overlaps(anchor_box, target_stack)       # overlaps: [N, K]
-        print(f"overlaps shape: {overlaps.shape}")
+        if DEBUG:
+            print(f"overlaps shape: {overlaps.shape}")
 
         # 找 anchor 要對應到哪個 target
         # 參考 https://github.com/rbgirshick/py-faster-rcnn/blob/781a917b378dbfdedb45b6a56189a31982da1b43/lib/rpn/anchor_target_layer.py#L130
         argmax_overlaps = overlaps.argmax(axis=1)
         max_overlaps = overlaps[np.arange(overlaps.shape[0]), argmax_overlaps]
         overlap = np.reshape(max_overlaps, anchor_box.shape[-3:])
-        print(f"overlap shape: {overlap.shape}")
+        if DEBUG:
+            print(f"overlap shape: {overlap.shape}")
 
-        # TODO: 遇到多個 target 的問題了
+        # 遇到多個 target 的問題了
         # 參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
         delta = target_delta(anchor_center, target, argmax_overlaps)    # delta: [4, 5, 25, 25]
+        if DEBUG:
+            print(f"delta shape: {delta.shape}")
         # delta[0] = (tcx - cx) / w
         # delta[1] = (tcy - cy) / h
         # delta[2] = np.log(tw / w)

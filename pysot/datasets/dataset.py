@@ -216,8 +216,8 @@ class TrkDataset(Dataset):
     def _get_bbox(self, image, shape):
         """
         Args:
-            image: 實際影像\n
-            shape: bbox 的位置 ([x1, y1, x2, y2])\n
+            image: 實際影像
+            shape: bbox 的位置 ([x1, y1, x2, y2])
         """
         imh, imw = image.shape[:2]
         if len(shape) == 4:

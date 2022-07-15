@@ -5,10 +5,12 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from pysot.core.config import cfg
 from collections import namedtuple
 
 import numpy as np
 
+DEBUG = cfg.DEBUG
 
 Corner = namedtuple('Corner', 'x1 y1 x2 y2')
 # alias
@@ -65,10 +67,12 @@ def target_overlaps(anchor, target):
     """
     # 把 anchor 拉成 [4, N]
     anchor_flatten = np.reshape(anchor, (4, -1))
-    print(f"anchor_flatten shape: {anchor_flatten.shape}")
+    if DEBUG:
+        print(f"anchor_flatten shape: {anchor_flatten.shape}")
     N = len(anchor_flatten[0])# number of anchor
     K = len(target[0])# number of target
-    print(f"N: {N}, K: {K}")
+    if DEBUG:
+        print(f"N: {N}, K: {K}")
     overlaps = np.zeros((N, K), dtype=np.float32)
 
     for k in range(K):
@@ -86,7 +90,6 @@ def target_overlaps(anchor, target):
     # assert overlaps[overlaps<0] == [], f"overlaps has area smaller than 0!!!"       # 確保 iou 都大於 0
     # assert overlaps[overlaps>1] == [], f"overlaps has area bigger than 0!!!"       # 確保 iou 都小於 1
     # 這裡還是錯的，我覺得應該是因為 anchor 和 target 的尺度沒有搞好，所以會跑掉
-    print(f"overlaps shape: {overlaps.shape}")
     
     return overlaps
 
@@ -136,8 +139,9 @@ def target_delta(anchor, target, argmax):
     """
     delta = np.zeros((4, argmax.shape[0]), dtype=np.float32)
     anchor_flatten = np.reshape(anchor, (4, -1))
-    cx, cy, w, h = anchor_flatten[0], anchor_flatten[1], anchor_flatten[2], anchor_flatten[3]
-    print(f"cx: {cx.shape}")
+    acx, acy, aw, ah = anchor_flatten[0], anchor_flatten[1], anchor_flatten[2], anchor_flatten[3]
+    if DEBUG:
+        print(f"acx: {acx.shape}")
     tcx, tcy, tw, th = corner2center(target)
     for i in range(argmax.shape[0]):
         # Closest target (it might have IoU < 0.7)
@@ -147,8 +151,10 @@ def target_delta(anchor, target, argmax):
         tw_closest = tw[index_closest]
         th_closest = th[index_closest]
 
-        delta[0] = (tcx_closest - cx) / w
-        # TODO
+        delta[0] = (tcx_closest - acx) / aw
+        delta[1] = (tcy_closest - acy) / ah
+        delta[2] = np.log(tw_closest / aw)
+        delta[3] = np.log(th_closest / ah)
 
     delta = np.reshape(delta, anchor.shape)
 

@@ -29,7 +29,7 @@ from pysot.utils.model_load import load_pretrain, restore_from
 from pysot.utils.average_meter import AverageMeter
 from pysot.utils.misc import describe, commit
 from pysot.models.model_builder import ModelBuilder
-from pysot.datasets.dataset import TrkDataset
+from pysot.datasets.pcbdataset import PCBDataset
 from pysot.core.config import cfg
 
 
@@ -57,7 +57,7 @@ def seed_torch(seed=0):
 def build_data_loader():
     logger.info("build train dataset")
     # train_dataset
-    train_dataset = TrkDataset()
+    train_dataset = PCBDataset()
     logger.info("build dataset done")
 
     train_sampler = None
@@ -170,7 +170,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             get_rank() == 0:
         os.makedirs(cfg.TRAIN.SNAPSHOT_DIR)
 
-    logger.info("model\n{}".format(describe(model.module)))
+    # logger.info("model\n{}".format(describe(model.module)))
     end = time.time()
     for idx, data in enumerate(train_loader):
         if epoch != idx // num_per_epoch + start_epoch:
@@ -269,7 +269,7 @@ def main():
                              logging.INFO)
 
         logger.info("Version Information: \n{}\n".format(commit()))
-        logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
+        # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
 
     # create model
     model = ModelBuilder().cuda().train()

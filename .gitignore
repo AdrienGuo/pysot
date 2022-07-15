@@ -1,9 +1,12 @@
 # My edition
+*.pth
 pysot/datasets/adrien.code-workspace
+training_dataset/vid/ILSVRC2015*
+
 training_dataset/coco/
 data/
-*.pth
-training_dataset/vid/ILSVRC2015*
+image_check/
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
