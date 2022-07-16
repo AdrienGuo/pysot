@@ -22,6 +22,7 @@ from pysot.core.config import cfg
 logger = logging.getLogger("global")
 
 # debug mode
+from torch.utils.data import DataLoader
 DEBUG = cfg.DEBUG
 
 # setting opencv
@@ -84,7 +85,7 @@ class PCBDataset():
                 if file.endswith(('.jpg', '.png', 'bmp')):
                     path = os.path.join(root, file)
                     anno_path = os.path.join(self.anno, file[:-3]+"txt")        # 改成 .txt (annotation 檔案)
-
+                    assert os.path.isfile(anno_path), f"This annotation path doesn't exist: {anno_path}"
                     # 非 text 類型
                     if os.path.isfile(anno_path):
                         f = open(anno_path, 'r')
@@ -208,7 +209,6 @@ class PCBDataset():
             search = self.get_neg_pair("search")
         else:
             template, search = self.get_positive_pair(index)
-
         
         # get image
         template_image = cv2.imread(template[0])
@@ -216,18 +216,23 @@ class PCBDataset():
         if DEBUG:
             print(f"template image path: {template[0]}")
             print(f"search image path: {search[0]}")
+            print(f"shape template, search: {template[1].shape}, {search[1].shape}")
         assert template_image is not None, f"error image: {template[0]}"
         
         # get bounding box
         # 先用 255*255 就好 (跑起來比較快)
         template_box = self._get_bbox(template_image, template[1], "template")
         search_box = self._get_bbox(search_image, search[1], "search")
+        assert template_box != [], f"template_box is empty"
+        assert search_box != [], f"search_box is empty"
+
         if DEBUG:
             print(f"search_image shape: {search_image.shape}")
+            print(f"search_box type: {type(search_box)}")
             print(f"search_box:\n {search_box}")
         
         # (image, bbox) is the return data type
-        template, _ = self.template_aug(template_image,
+        template_image, _ = self.template_aug(template_image,
                                         template_box,
                                         cfg.TRAIN.EXEMPLAR_SIZE,
                                         gray=gray)
@@ -252,17 +257,65 @@ class PCBDataset():
         
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
+        print(f"template_image shape: {template_image.shape}")
         
         return {
-                'template': template_image,
-                'search': search_image,
+                'template_image': template_image,
+                'search_image': search_image,
                 'label_cls': cls,
                 'label_loc': delta,
                 'label_loc_weight': delta_weight,
                 'bbox': np.array(bbox)
                }
+    
+    def collate_fn(self, batch):
+        """ 因為每個 template 會有 "不同數量" 的 targets，we need a collate function (to be passed to the DataLoader).
+            不然會跳出 RuntimeError: stack expects each tensor to be equal size, but got [4, 1] at entry 0 and [4, 2] at entry 2
+            參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/datasets.py#L60
+        args:
+            batch: an iterable of N sets from __getitem__()
+        return:
+            a tensor of images, lists of varying-size tensors of bounding boxes, etc
+        """
+        template_image = list()
+        search_image = list()
+        cls = list()
+        delta = list()
+        delta_weight = list()
+        bbox = list()
+
+        for b in batch:
+            template_image.append(b['template_image'])
+            search_image.append(b['search_image'])
+            cls.append(b['label_cls'])
+            delta.append(b['label_loc'])
+            delta_weight.append(b['label_loc_weight'])
+            bbox.append(b['bbox'])
+                
+        return {
+                'template_image': template_image,
+                'search_image': search_image,
+                'label_cls': cls,
+                'label_loc': delta,
+                'label_loc_weight': delta_weight,
+                'bbox': bbox
+               }
+    
 
 if __name__ == "__main__":
     dataset = PCBDataset()
-    dataset.__getitem__(2)
+    dataset.__getitem__(7)
+
+    train_loader = DataLoader(dataset,
+                              batch_size=cfg.TRAIN.BATCH_SIZE,
+                              num_workers=cfg.TRAIN.NUM_WORKERS,
+                              collate_fn=dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
+                              pin_memory=True,
+                              sampler=None)
+    print(len(dataset))
+    print(len(train_loader))
+
+    for data in enumerate(train_loader):
+        pass
+
     print("="*20 + " Done!! " + "="*20 + "\n")

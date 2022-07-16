@@ -12,7 +12,7 @@ __C = CN()
 cfg = __C
 
 # debug mode
-__C.DEBUG = True
+__C.DEBUG = False
 
 __C.META_ARC = "siamrpn_r50_l234_dwxcorr"
 
@@ -50,7 +50,9 @@ __C.TRAIN.OUTPUT_SIZE = 25
 
 __C.TRAIN.RESUME = ''
 
-__C.TRAIN.PRETRAINED = ''
+# edit
+# __C.TRAIN.PRETRAINED = ''
+__C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
 
@@ -62,7 +64,9 @@ __C.TRAIN.START_EPOCH = 0
 
 __C.TRAIN.BATCH_SIZE = 32
 
-__C.TRAIN.NUM_WORKERS = 1
+# edit
+# __C.TRAIN.NUM_WORKERS = 1
+__C.TRAIN.NUM_WORKERS = 0
 
 __C.TRAIN.MOMENTUM = 0.9
 
