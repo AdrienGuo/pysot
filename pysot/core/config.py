@@ -11,6 +11,9 @@ __C = CN()
 
 cfg = __C
 
+# debug mode
+__C.DEBUG = False
+
 __C.META_ARC = "siamrpn_r50_l234_dwxcorr"
 
 __C.CUDA = True
@@ -47,7 +50,9 @@ __C.TRAIN.OUTPUT_SIZE = 25
 
 __C.TRAIN.RESUME = ''
 
-__C.TRAIN.PRETRAINED = ''
+# edit
+# __C.TRAIN.PRETRAINED = ''
+__C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
 
@@ -59,7 +64,9 @@ __C.TRAIN.START_EPOCH = 0
 
 __C.TRAIN.BATCH_SIZE = 32
 
-__C.TRAIN.NUM_WORKERS = 1
+# edit
+# __C.TRAIN.NUM_WORKERS = 1
+__C.TRAIN.NUM_WORKERS = 5
 
 __C.TRAIN.MOMENTUM = 0.9
 
@@ -106,15 +113,18 @@ __C.DATASET.TEMPLATE = CN()
 
 # Random shift see [SiamPRN++](https://arxiv.org/pdf/1812.11703)
 # for detail discussion
-__C.DATASET.TEMPLATE.SHIFT = 4
+# __C.DATASET.TEMPLATE.SHIFT = 4
+__C.DATASET.TEMPLATE.SHIFT = 0
 
-__C.DATASET.TEMPLATE.SCALE = 0.05
+# __C.DATASET.TEMPLATE.SCALE = 0.05
+__C.DATASET.TEMPLATE.SCALE = 0
 
 __C.DATASET.TEMPLATE.BLUR = 0.0
 
 __C.DATASET.TEMPLATE.FLIP = 0.0
 
-__C.DATASET.TEMPLATE.COLOR = 1.0
+# __C.DATASET.TEMPLATE.COLOR = 1.0
+__C.DATASET.TEMPLATE.COLOR = 0
 
 __C.DATASET.SEARCH = CN()
 
@@ -135,7 +145,7 @@ __C.DATASET.NEG = 0.2
 # improve tracking performance for otb100
 __C.DATASET.GRAY = 0.0
 
-__C.DATASET.NAMES = ('VID', 'COCO', 'DET', 'YOUTUBEBB')
+__C.DATASET.NAMES = ('VID', 'COCO', 'DET', 'YOUTUBEBB', 'CUSTOM')
 
 __C.DATASET.VID = CN()
 __C.DATASET.VID.ROOT = 'training_dataset/vid/crop511'
@@ -160,6 +170,12 @@ __C.DATASET.DET.ROOT = 'training_dataset/det/crop511'
 __C.DATASET.DET.ANNO = 'training_dataset/det/train.json'
 __C.DATASET.DET.FRAME_RANGE = 1
 __C.DATASET.DET.NUM_USE = -1
+
+__C.DATASET.CUSTOM = CN()
+__C.DATASET.CUSTOM.ROOT = 'data/train/TemplateMatchingData/train'
+__C.DATASET.CUSTOM.ANNO = 'data/train/TemplateMatchingData/train'
+__C.DATASET.CUSTOM.FRAME_RANGE = 1
+__C.DATASET.CUSTOM.NUM_USE = -1
 
 __C.DATASET.VIDEOS_PER_EPOCH = 600000
 # ------------------------------------------------------------------------ #

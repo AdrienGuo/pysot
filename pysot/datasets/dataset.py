@@ -120,6 +120,9 @@ class SubDataset(object):
         search_range = frames[left:right]
         template_frame = frames[template_frame]
         search_frame = np.random.choice(search_range)
+        # 上面雖然很長，但其實也沒什麼，就是範圍的界定和隨機選取而已，
+        # 反正到最後是回傳index對應到的video，裡面隨機其中一張當template，範圍內的隨機一張當search
+        # (注意這裡雖然都是一對一，但我的資料不是)
         return self.get_image_anno(video_name, track, template_frame), \
             self.get_image_anno(video_name, track, search_frame)
 
@@ -158,8 +161,8 @@ class TrkDataset(Dataset):
             subdata_cfg = getattr(cfg.DATASET, name)
             sub_dataset = SubDataset(
                     name,
-                    subdata_cfg.ROOT,
-                    subdata_cfg.ANNO,
+                    subdata_cfg.ROOT,               # ex: training_dataset/coco/crop511
+                    subdata_cfg.ANNO,               # ex: training_dataset/coco/train2017.json
                     subdata_cfg.FRAME_RANGE,
                     subdata_cfg.NUM_USE,
                     start
@@ -211,6 +214,11 @@ class TrkDataset(Dataset):
                 return dataset, index - dataset.start_idx
 
     def _get_bbox(self, image, shape):
+        """
+        Args:
+            image: 實際影像
+            shape: bbox 的位置 ([x1, y1, x2, y2])
+        """
         imh, imw = image.shape[:2]
         if len(shape) == 4:
             w, h = shape[2]-shape[0], shape[3]-shape[1]
@@ -236,6 +244,7 @@ class TrkDataset(Dataset):
         dataset, index = self._find_dataset(index)
 
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
+        # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
 
         # get one dataset
@@ -254,6 +263,7 @@ class TrkDataset(Dataset):
         search_box = self._get_bbox(search_image, search[1])
 
         # augmentation
+        # self.xxx_aug 的回傳格式是 image, bbox
         template, _ = self.template_aug(template_image,
                                         template_box,
                                         cfg.TRAIN.EXEMPLAR_SIZE,

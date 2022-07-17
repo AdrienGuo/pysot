@@ -14,6 +14,11 @@ from pysot.models.backbone import get_backbone
 from pysot.models.head import get_rpn_head, get_mask_head, get_refine_head
 from pysot.models.neck import get_neck
 
+import torch
+
+# debug mode
+DEBUG = cfg.DEBUG
+
 
 class ModelBuilder(nn.Module):
     def __init__(self):
@@ -77,12 +82,18 @@ class ModelBuilder(nn.Module):
     def forward(self, data):
         """ only used in training
         """
-        template = data['template'].cuda()
-        search = data['search'].cuda()
-        label_cls = data['label_cls'].cuda()
-        label_loc = data['label_loc'].cuda()
-        label_loc_weight = data['label_loc_weight'].cuda()
+        template = [torch.from_numpy(template).cuda() for template in data['template_image']]
+        search = [torch.from_numpy(search).cuda() for search in data['search_image']]
+        label_cls = [torch.from_numpy(label_cls).cuda() for label_cls in data['label_cls']]
+        label_loc = [torch.from_numpy(label_loc).cuda() for label_loc in data['label_loc']]
+        label_loc_weight = [torch.from_numpy(label_loc_weight).cuda() for label_loc_weight in data['label_loc_weight']]
 
+        template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
+        search = torch.stack(search, dim=0)
+        label_cls = torch.stack(label_cls, dim=0)
+        label_loc = torch.stack(label_loc, dim=0)
+        label_loc_weight = torch.stack(label_loc_weight, dim=0)
+        
         # get feature
         zf = self.backbone(template)
         xf = self.backbone(search)
@@ -93,12 +104,14 @@ class ModelBuilder(nn.Module):
         if cfg.ADJUST.ADJUST:
             zf = self.neck(zf)
             xf = self.neck(xf)
-        cls, loc = self.rpn_head(zf, xf)
+        cls, loc = self.rpn_head(zf, xf)        # cls: [b, 10, 25, 25], loc: [b, 20, 25, 25]
 
         # get loss
         cls = self.log_softmax(cls)
         cls_loss = select_cross_entropy_loss(cls, label_cls)
         loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
+
+        print(f"cls_loss: {cls_loss:<8.3f} | loc_loss: {loc_loss:<8.3f}")
 
         outputs = {}
         outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \

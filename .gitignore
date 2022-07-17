@@ -1,3 +1,17 @@
+# My edition
+*.pth
+*.jpg
+*.bmp
+*.png
+pysot/datasets/adrien.code-workspace
+training_dataset/vid/ILSVRC2015*
+training_dataset/vid/vid.json
+
+training_dataset/coco/
+data/
+image_check/
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -29,9 +29,10 @@ from pysot.utils.model_load import load_pretrain, restore_from
 from pysot.utils.average_meter import AverageMeter
 from pysot.utils.misc import describe, commit
 from pysot.models.model_builder import ModelBuilder
-from pysot.datasets.dataset import TrkDataset
+from pysot.datasets.pcbdataset import PCBDataset
 from pysot.core.config import cfg
 
+import ipdb
 
 logger = logging.getLogger('global')
 parser = argparse.ArgumentParser(description='siamrpn tracking')
@@ -42,6 +43,8 @@ parser.add_argument('--seed', type=int, default=123456,
 parser.add_argument('--local_rank', type=int, default=0,
                     help='compulsory for pytorch launcer')
 args = parser.parse_args()
+
+DEBUG = cfg.DEBUG
 
 
 def seed_torch(seed=0):
@@ -57,15 +60,18 @@ def seed_torch(seed=0):
 def build_data_loader():
     logger.info("build train dataset")
     # train_dataset
-    train_dataset = TrkDataset()
+    train_dataset = PCBDataset()
     logger.info("build dataset done")
 
     train_sampler = None
     if get_world_size() > 1:
         train_sampler = DistributedSampler(train_dataset)
+    if DEBUG:
+        print(f"train_sampler: {train_sampler}")
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.TRAIN.BATCH_SIZE,
-                              num_workers=cfg.TRAIN.NUM_WORKERS,
+                              collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
+                              num_workers=cfg.TRAIN.NUM_WORKERS,        # num_workers 先設為 0，因為 annotaiton 有問題(有些是空的)
                               pin_memory=True,
                               sampler=train_sampler)
     return train_loader
@@ -161,8 +167,9 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         return not(math.isnan(x) or math.isinf(x) or x > 1e4)
 
     world_size = get_world_size()
-    num_per_epoch = len(train_loader.dataset) // \
-        cfg.TRAIN.EPOCH // (cfg.TRAIN.BATCH_SIZE * world_size)
+    num_per_epoch = len(train_loader.dataset) // cfg.TRAIN.EPOCH // (cfg.TRAIN.BATCH_SIZE * world_size)
+    print(f"train_loader.dataset len: {len(train_loader.dataset)}")
+
     start_epoch = cfg.TRAIN.START_EPOCH
     epoch = start_epoch
 
@@ -170,7 +177,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             get_rank() == 0:
         os.makedirs(cfg.TRAIN.SNAPSHOT_DIR)
 
-    logger.info("model\n{}".format(describe(model.module)))
+    # logger.info("model\n{}".format(describe(model.module)))
     end = time.time()
     for idx, data in enumerate(train_loader):
         if epoch != idx // num_per_epoch + start_epoch:
@@ -189,7 +196,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             if cfg.BACKBONE.TRAIN_EPOCH == epoch:
                 logger.info('start training backbone.')
                 optimizer, lr_scheduler = build_opt_lr(model.module, epoch)
-                logger.info("model\n{}".format(describe(model.module)))
+                # logger.info("model\n{}".format(describe(model.module)))
 
             lr_scheduler.step(epoch)
             cur_lr = lr_scheduler.get_cur_lr()
@@ -269,7 +276,7 @@ def main():
                              logging.INFO)
 
         logger.info("Version Information: \n{}\n".format(commit()))
-        logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
+        # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
 
     # create model
     model = ModelBuilder().cuda().train()
