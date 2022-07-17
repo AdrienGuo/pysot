@@ -275,9 +275,9 @@ class PCBDataset():
         logger.debug("__getitem__")
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
-        neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
         
-        neg = False     # 先不要有 negative pair
+        # TODO: 加入 neg
+        neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
 
         # get one dataset
         # 這個 if 還需要修改成 template 和 search "一定" 不會互相對應到同一張圖片的
@@ -291,11 +291,15 @@ class PCBDataset():
         # Step 1.
         # get template and search images
         ####################################################################
-        # get image
-        # template_image 和 search_image 其實是一樣的
         template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
-        assert np.array_equal(template_image, search_image), f"template image and search image are not the same!!"
+        
+        # image_h, image_w = search_image.shape[:2]
+        # template_box = center2corner(template[1])
+        # tmplt_x1, tmplt_x2 = image_w * template_box[0], image_w * template_box[2]
+        # tmplt_y1, tmplt_y2 = image_h * template_box[1], image_h * template_box[3]
+        # print(f"image path: {template[0]}")
+        # print(f"[{tmplt_x1, tmplt_y1, tmplt_x2, tmplt_y2}]")
         
         if DEBUG:
             print(f"template image path: {template[0]}")
@@ -372,7 +376,6 @@ class PCBDataset():
         if DEBUG:
             file_name = template[0].split("/")[-1]
             check_image.draw_bbox(search_image, bbox, file_name)
-
             template_image_name = "template_" + template[0].split("/")[-1]
             check_image.save_image("template", template_image, template_image_name)
             search_image_name = "search_" + search[0].split("/")[-1]
@@ -399,12 +402,6 @@ class PCBDataset():
                                        search_box,
                                        cfg.TRAIN.SEARCH_SIZE,
                                        gray=gray)
-        """
-
-        """ 
-        savedimage_path = "./image_check/train/" + search[0].split("/")[-1]
-        cv2.imwrite(savedimage_path, search_image)
-        print(f"save image to: {savedimage_path}")
         """
         
         ####################################################################
@@ -465,7 +462,7 @@ class PCBDataset():
 
 if __name__ == "__main__":
     dataset = PCBDataset()
-    dataset.__getitem__(2)
+    dataset.__getitem__(1)
 
     # train_loader = DataLoader(dataset,
     #                           batch_size=cfg.TRAIN.BATCH_SIZE,
