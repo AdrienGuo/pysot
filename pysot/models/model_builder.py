@@ -88,8 +88,7 @@ class ModelBuilder(nn.Module):
         label_loc = [torch.from_numpy(label_loc).cuda() for label_loc in data['label_loc']]
         label_loc_weight = [torch.from_numpy(label_loc_weight).cuda() for label_loc_weight in data['label_loc_weight']]
 
-        # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
-        template = torch.stack(template, dim=0)
+        template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
         search = torch.stack(search, dim=0)
         label_cls = torch.stack(label_cls, dim=0)
         label_loc = torch.stack(label_loc, dim=0)
@@ -105,16 +104,14 @@ class ModelBuilder(nn.Module):
         if cfg.ADJUST.ADJUST:
             zf = self.neck(zf)
             xf = self.neck(xf)
-        cls, loc = self.rpn_head(zf, xf)
+        cls, loc = self.rpn_head(zf, xf)        # cls: [b, 10, 25, 25], loc: [b, 20, 25, 25]
 
         # get loss
         cls = self.log_softmax(cls)
         cls_loss = select_cross_entropy_loss(cls, label_cls)
         loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
 
-        print(f"one batch loss: \n" + \
-                f"cls_loss: {cls_loss}\n" + \
-                f"loc_loss: {loc_loss}")
+        print(f"cls_loss: {cls_loss:<8.3f} | loc_loss: {loc_loss:<8.3f}")
 
         outputs = {}
         outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \

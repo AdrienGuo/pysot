@@ -14,15 +14,19 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from pysot.utils.bbox import center2corner, Center
+from pysot.utils.bbox import Corner, center2corner, Center
 from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.augmentation import Augmentation
 from pysot.core.config import cfg
 
 logger = logging.getLogger("global")
 
-# debug mode
+import pysot.datasets.check_image as check_image
+import ipdb
+from pysot.datasets.crop_image import crop_like_SiamFC
 from torch.utils.data import DataLoader
+from torchvision import transforms
+from PIL import Image
 DEBUG = cfg.DEBUG
 
 # setting opencv
@@ -180,8 +184,6 @@ class PCBDataset():
         """
         # 是先高度再寬度 !!!
         imh, imw = image.shape[:2]          # image 的 height, width
-        if DEBUG:
-            print(f"imh, imw: {imh}, {imw}")
         if type == "template":
             cx, w = imw*shape[0], imw*shape[2]
             cy, h = imh*shape[1], imh*shape[3]
@@ -189,6 +191,81 @@ class PCBDataset():
             cx, w = imw*shape[:, 0], imw*shape[:, 2]
             cy, h = imh*shape[:, 1], imh*shape[:, 3]
         bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
+        return bbox
+    
+    def _get_bbox_amy(self, shape, typeName, direction, origin_size, temp):#原本cx,cy,w,h
+        bbox=[]
+        length = len(shape)
+        if typeName=="template":                    # 但亭儀的 typeName 完全沒有等於 template，應該是因為 template 也不需要 bbox
+            shape[0]=shape[0]*origin_size[0]        # shape 是比例，origin_size 是實際影像大小
+            shape[1]=shape[1]*origin_size[1]
+            shape[2]=shape[2]*origin_size[0]
+            shape[3]=shape[3]*origin_size[1]
+            # 這裡是要把物體移到中間
+            if direction=='x':
+                x1 = (shape[0]-shape[2]/2)+temp     # temp 這個取名我不懂...
+                y1 = (shape[1]-shape[3]/2)
+                x2 = (shape[0]+shape[2]/2)+temp
+                y2 = (shape[1]+shape[3]/2)
+            else:
+                x1 = (shape[0]-shape[2]/2)
+                y1 = (shape[1]-shape[3]/2)+temp
+                x2 = (shape[0]+shape[2]/2)
+                y2 = (shape[1]+shape[3]/2)+temp
+            bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
+        else:
+            
+            shape[:,0]=shape[:,0]*origin_size[0]
+            shape[:,1]=shape[:,1]*origin_size[1]
+            shape[:,2]=shape[:,2]*origin_size[0]
+            shape[:,3]=shape[:,3]*origin_size[1]
+
+            for i in range (len(shape)):
+                if direction=='x':
+                    x1 = (shape[i][0]-shape[i][2]/2)+temp
+                    y1 = (shape[i][1]-shape[i][3]/2)
+                    x2 = (shape[i][0]+shape[i][2]/2)+temp
+                    y2 = (shape[i][1]+shape[i][3]/2)
+                else:
+                    x1 = (shape[i][0]-shape[i][2]/2)
+                    y1 = (shape[i][1]-shape[i][3]/2)+temp
+                    x2 = (shape[i][0]+shape[i][2]/2)
+                    y2 = (shape[i][1]+shape[i][3]/2)+temp
+                bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
+            
+        return bbox
+    
+    
+    # 使用 image_crop 511
+    def _search_gt_box(self, image, shape, scale, check):
+        # print("box:",shape.shape)
+        imh, imw = image.shape[:2]
+        context_amount = 0.5
+        exemplar_size = cfg.TRAIN.EXEMPLAR_SIZE
+        bbox=[]
+        cx=shape[:,0]*imw
+        cy=shape[:,1]*imh
+        w=shape[:,2]*imw
+        h=shape[:,3]*imh
+            
+        for i in range (len(shape)):
+            
+            w1 ,h1 = w[i],h[i]
+            if check==0:
+                cx1 = cx[i]*scale[0]
+                cy1 = cy[i]*scale[1]
+            else:
+                cx1 = cx[i]*scale[0]+scale[2]
+                cy1 = cy[i]*scale[1]+scale[3]
+   
+            wc_z = w1 + context_amount * (w1+h1)
+            hc_z = h1 + context_amount * (w1+h1)
+            s_z = np.sqrt(wc_z * hc_z)
+            scale_z = exemplar_size / s_z
+            w1 = w1*scale_z
+            h1 = h1*scale_z
+            
+            bbox.append(center2corner(Center(cx1, cy1, w1, h1)))
         return bbox
     
     def __len__(self):
@@ -210,27 +287,108 @@ class PCBDataset():
         else:
             template, search = self.get_positive_pair(index)
         
+        ####################################################################
+        # Step 1.
+        # get template and search images
+        ####################################################################
         # get image
-        template_image = cv2.imread(template[0])
+        # template_image 和 search_image 其實是一樣的
+        template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
+        assert np.array_equal(template_image, search_image), f"template image and search image are not the same!!"
+        
         if DEBUG:
             print(f"template image path: {template[0]}")
             print(f"search image path: {search[0]}")
             print(f"shape template, search: {template[1].shape}, {search[1].shape}")
         assert template_image is not None, f"error image: {template[0]}"
+
+        ####################################################################
+        # Step 2.
+        # crop template image, 
+        # and get the scale which will be used in Step 3.
+        ####################################################################
+        # z: template
+        # x: search
+        z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
+        template_bbox = template[1]
+        search_bbox = search[1]
+        template_bbox_corner = center2corner(template_bbox)
+        template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
         
+        ####################################################################
+        # Step 3.
+        # crop search image according to scale
+        # search crop (like SiamFC) 但影像都放在左上角 (不懂??)
+        # 同樣要處理 search 的 bbox
+        ####################################################################
+        if (z_h * search_image.shape[0] > cfg.TRAIN.SEARCH_SIZE) or (z_w * search_image.shape[1] > cfg.TRAIN.SEARCH_SIZE):
+            center_crop = transforms.CenterCrop(cfg.TRAIN.SEARCH_SIZE)
+            resize = transforms.Resize([cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE])
+            search_image = Image.fromarray((cv2.cvtColor(search_image, cv2.COLOR_BGR2RGB)))     # 我不懂為甚麼又要用 PIL 來讀影像??。看懂了，因為 transforms.centercrop 不能用 cv2
+            s_resize = resize(search_image)       # s_resize 應該是一張圖片
+            origin_size = s_resize.size
+            search_image = center_crop(s_resize)
+        
+            if origin_size[0] < cfg.TRAIN.SEARCH_SIZE: #x
+                temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[0]) / 2
+                direction = 'x'
+            elif origin_size[1] < cfg.TRAIN.SEARCH_SIZE: #y
+                temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[1]) / 2
+                direction = 'y'
+            else:
+                temp=0
+                direction = 'x'
+
+            # get bounding box
+            # 亭儀的 _get_bbox 要這樣寫應該是因為他有把 search image 移動過，所以 bbox 也要相對地移動
+            search_box = self._get_bbox_amy(search[1],"search",direction,origin_size,temp)
+            search_image = cv2.cvtColor(np.asarray(search_image), cv2.COLOR_RGB2BGR)
+            bbox = search_box
+            # bbox 和 search_box 竟然會是不一樣的 data type!!?
+            # bbox: corner, search_box: array
+        else:
+            cx = (z_w/2)*scale[0]+scale[2]
+            cy = (z_h/2)*scale[1]+scale[3]
+            if (z_w*scale[0] < 300 ) and (z_h*scale[1] < 300 ):
+                mapping = np.array([[scale[0], 0, 300-cx],
+                            [0, scale[1], 300-cy]]).astype(np.float)
+                scale[2] = 300-cx
+                scale[3] = 300-cy
+                check=1
+            else:
+                mapping = np.array([[scale[0], 0, 0],
+                            [0, scale[1], 0]]).astype(np.float)
+                check=0
+            
+            search_image2 = cv2.warpAffine(search_image, mapping, (600, 600), 
+                                   borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
+        
+            search_box = self._search_gt_box(search_image,search[1],scale,check)
+            bbox = search_box
+            search_image = search_image2
+        
+        # save image
+        if DEBUG:
+            file_name = template[0].split("/")[-1]
+            check_image.draw_bbox(search_image, bbox, file_name)
+
+            template_image_name = "template_" + template[0].split("/")[-1]
+            check_image.save_image("template", template_image, template_image_name)
+            search_image_name = "search_" + search[0].split("/")[-1]
+            check_image.save_image("search", search_image, search_image_name)
+
         # get bounding box
         # 先用 255*255 就好 (跑起來比較快)
-        template_box = self._get_bbox(template_image, template[1], "template")
-        search_box = self._get_bbox(search_image, search[1], "search")
-        assert template_box != [], f"template_box is empty"
-        assert search_box != [], f"search_box is empty"
+        # template_box = self._get_bbox(template_image, template[1], "template")
+        # search_box = self._get_bbox(search_image, search[1], "search")
 
         if DEBUG:
             print(f"search_image shape: {search_image.shape}")
             print(f"search_box type: {type(search_box)}")
             print(f"search_box:\n {search_box}")
         
+        """ 
         # (image, bbox) is the return data type
         template_image, _ = self.template_aug(template_image,
                                         template_box,
@@ -241,23 +399,26 @@ class PCBDataset():
                                        search_box,
                                        cfg.TRAIN.SEARCH_SIZE,
                                        gray=gray)
-        if DEBUG:
-            print(f"adjusted search_bbox: {bbox}")
+        """
 
         """ 
         savedimage_path = "./image_check/train/" + search[0].split("/")[-1]
         cv2.imwrite(savedimage_path, search_image)
         print(f"save image to: {savedimage_path}")
         """
-        # TODO: 畫 bbox
-
-        # get labels
+        
+        ####################################################################
+        # Step 4.
+        # get the label for training
+        ####################################################################
+        bbox = np.asarray(bbox)
+        bbox = np.transpose(bbox, (1, 0))
+        bbox = Corner(bbox[0], bbox[1], bbox[2], bbox[3])
         cls, delta, delta_weight, overlap = self.anchor_target(
                 bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
         
-        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)
+        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
-        print(f"template_image shape: {template_image.shape}")
         
         return {
                 'template_image': template_image,
@@ -304,18 +465,18 @@ class PCBDataset():
 
 if __name__ == "__main__":
     dataset = PCBDataset()
-    dataset.__getitem__(7)
+    dataset.__getitem__(2)
 
-    train_loader = DataLoader(dataset,
-                              batch_size=cfg.TRAIN.BATCH_SIZE,
-                              num_workers=cfg.TRAIN.NUM_WORKERS,
-                              collate_fn=dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
-                              pin_memory=True,
-                              sampler=None)
-    print(len(dataset))
-    print(len(train_loader))
+    # train_loader = DataLoader(dataset,
+    #                           batch_size=cfg.TRAIN.BATCH_SIZE,
+    #                           num_workers=cfg.TRAIN.NUM_WORKERS,
+    #                           collate_fn=dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
+    #                           pin_memory=True,
+    #                           sampler=None)
+    # print(len(dataset))
+    # print(len(train_loader))
 
-    for data in enumerate(train_loader):
-        pass
+    # for data in enumerate(train_loader):
+    #     pass
 
     print("="*20 + " Done!! " + "="*20 + "\n")
