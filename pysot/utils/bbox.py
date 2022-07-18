@@ -60,12 +60,12 @@ def target_overlaps(anchor, target):
         原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
         參考 Faster R-CNN: https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/utils/bbox.pyx
     Args:
-        anchor: (), anchor
+        anchor: (x1, y1, x2, y2), anchor
         target: (), target (can call it bbox?)
     Returns:
         iou: (N, K) ndarray of overlap between anchor(N) and target(K)
     """
-    # 把 anchor 拉成 [4, N]
+    # 把 anchor 拉成 [4, N], N = 5*25*25
     anchor_flatten = np.reshape(anchor, (4, -1))
     if DEBUG:
         print(f"anchor_flatten shape: {anchor_flatten.shape}")
@@ -79,37 +79,36 @@ def target_overlaps(anchor, target):
         target_area = (target[2, k]-target[0, k]) * (target[3, k]-target[1, k])
         assert target_area>0, f"target_area"
         for n in range(N):
-            intersection_width = min(anchor_flatten[2, n], target[2, k]) - max(anchor_flatten[0, n], target[0, k])
-            intersection_height = min(anchor_flatten[3, n], target[3, k]) - max(anchor_flatten[1, n], target[1, k])
-            intersection_area = abs(intersection_width * intersection_height)
             anchor_area = (anchor_flatten[2, n]-anchor_flatten[0, n]) * (anchor_flatten[3, n]-anchor_flatten[1, n])
+            intersection_x1 = np.maximum(anchor_flatten[0, n], target[0, k])
+            intersection_y1 = np.maximum(anchor_flatten[1, n], target[1, k])
+            intersection_x2 = np.minimum(anchor_flatten[2, n], target[2, k])
+            intersection_y2 = np.minimum(anchor_flatten[3, n], target[3, k])
+            intersection_width = np.maximum(0, intersection_x2 - intersection_x1)
+            intersection_height = np.maximum(0, intersection_y2 - intersection_y1)
+            intersection_area = intersection_width * intersection_height
+            
             ua = target_area + anchor_area - intersection_area
-            # assert ua>0, f"wrong" + \
-            #     f"{target_area}, {anchor_area}, {intersection_area}"
-            overlaps[n, k] = (intersection_width * intersection_height) / ua
-    # assert overlaps[overlaps<0] == [], f"overlaps has area smaller than 0!!!"       # 確保 iou 都大於 0
-    # assert overlaps[overlaps>1] == [], f"overlaps has area bigger than 0!!!"       # 確保 iou 都小於 1
+            assert ua>0, f"wrong" + \
+                f"{target_area}, {anchor_area}, {intersection_area}"
+            overlaps[n, k] = intersection_area / ua
+    
+    # 確保 iou 都大於 0
+    assert overlaps[overlaps<0].size == 0, f"overlaps has area smaller than 0!!!"
+    # 確保 iou 都小於 1
+    assert overlaps[overlaps>1].size == 0, f"overlaps has area bigger than 0!!!"
     # 這裡還是錯的，我覺得應該是因為 anchor 和 target 的尺度沒有搞好，所以會跑掉
     
     return overlaps
 
 def IoU(rect1, rect2):
     """ caculate interection over union
-        原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
-        參考 Faster R-CNN: https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/utils/bbox.pyx
     Args:
-        rect1: (x1, y1, x2, y2), anchor
-        rect2: (x1, y1, x2, y2), target (can call it bbox?)
+        rect1: (x1, y1, x2, y2)
+        rect2: (x1, y1, x2, y2)
     Returns:
-        iou: (N, K) ndarray of overlap between anchor(N) and target(K)
+        iou
     """
-    N = len(rect1[0])# number of anchor
-    K = len(rect2[0])# number of target
-    print(K)
-    iou = np.zeros((N, K), dtype=np.float32)
-    iw, ih, box_area = 0, 0, 0
-    ua = 0
-
     # overlap
     x1, y1, x2, y2 = rect1[0], rect1[1], rect1[2], rect1[3]
     tx1, ty1, tx2, ty2 = rect2[0], rect2[1], rect2[2], rect2[3]
@@ -119,7 +118,7 @@ def IoU(rect1, rect2):
     xx2 = np.minimum(tx2, x2)
     yy2 = np.minimum(ty2, y2)
 
-    ww = np.maximum(0, xx2 - xx1)       # 這裡的 0 可以拿掉吧??
+    ww = np.maximum(0, xx2 - xx1)
     hh = np.maximum(0, yy2 - yy1)
 
     area = (x2-x1) * (y2-y1)

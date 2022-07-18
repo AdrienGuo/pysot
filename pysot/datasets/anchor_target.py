@@ -57,9 +57,9 @@ class AnchorTarget:
             # cls[:, l:r, l:r] = 0
             
             # randomly get only "one" target from all targets
-            random_pick = np.random.randint(low=len(tcx), size=1)
-            tcx = tcx[random_pick]
-            tcy = tcy[random_pick]
+            # random_pick = np.random.randint(low=len(tcx), size=1)
+            # tcx = tcx[random_pick]
+            # tcy = tcy[random_pick]
 
             cx = size // 2
             cy = size // 2
@@ -87,6 +87,7 @@ class AnchorTarget:
         cx, cy, w, h = anchor_center[0], anchor_center[1], \
             anchor_center[2], anchor_center[3]
 
+        
         # 把 target 疊起來變成 [4, K]
         target_stack = np.stack((target[0], target[1], target[2], target[3]))
         if DEBUG:
@@ -111,10 +112,13 @@ class AnchorTarget:
         delta = target_delta(anchor_center, target, argmax_overlaps)    # delta: [4, 5, 25, 25]
         if DEBUG:
             print(f"delta shape: {delta.shape}")
+        
         # delta[0] = (tcx - cx) / w
         # delta[1] = (tcy - cy) / h
         # delta[2] = np.log(tw / w)
         # delta[3] = np.log(th / h)
+
+        # overlap = IoU([x1, y1, x2, y2], target)
 
         pos = np.where(overlap > cfg.TRAIN.THR_HIGH)        # pos (positive): 3維的，就是 anchor_box[-3:] 的維度
         neg = np.where(overlap < cfg.TRAIN.THR_LOW)
