@@ -299,6 +299,7 @@ class PCBDataset():
         # tmplt_y1, tmplt_y2 = image_h * template_box[1], image_h * template_box[3]
         # print(f"image path: {template[0]}")
         # print(f"[{tmplt_x1, tmplt_y1, tmplt_x2, tmplt_y2}]")
+        # print(f"search: \n{search[1]}")
         
         if DEBUG:
             print(f"template image path: {template[0]}")
@@ -472,7 +473,7 @@ class PCBDataset():
 
 if __name__ == "__main__":
     dataset = PCBDataset()
-    dataset.__getitem__(1)
+    dataset.__getitem__(2)
 
     # train_loader = DataLoader(dataset,
     #                           batch_size=cfg.TRAIN.BATCH_SIZE,
