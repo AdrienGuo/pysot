@@ -3,6 +3,7 @@
 *.jpg
 *.bmp
 *.png
+*.model
 pysot/datasets/adrien.code-workspace
 training_dataset/vid/ILSVRC2015*
 training_dataset/vid/vid.json
@@ -12,6 +13,7 @@ data/
 image_check/
 logs/
 results/
+pretrained_models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

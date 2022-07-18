@@ -55,6 +55,11 @@ class AnchorTarget:
             # l = size // 2 - 3
             # r = size // 2 + 3 + 1
             # cls[:, l:r, l:r] = 0
+            
+            # randomly get only "one" target from all targets
+            random_pick = np.random.randint(low=len(tcx), size=1)
+            tcx = tcx[random_pick]
+            tcy = tcy[random_pick]
 
             cx = size // 2
             cy = size // 2
