@@ -70,7 +70,7 @@ def main():
 	model_name = args.snapshot.split('/')[-1].split('.')[0]
 	print(f"model_name: {model_name}")
 	
-	gt_bbox = [123.27983754873276, 46.277657985687256, 502.71278911828995, 453.522319316864]
+	gt_bbox = [45.09031666815281, 123.62768352031708, 123.27953104674816, 376.83301651477814]
 	toc = 0
 	pred_bboxes = []
 	scores = []

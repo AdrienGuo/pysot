@@ -51,8 +51,8 @@ __C.TRAIN.OUTPUT_SIZE = 25
 __C.TRAIN.RESUME = ''
 
 # edit
-# __C.TRAIN.PRETRAINED = ''
-__C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
+__C.TRAIN.PRETRAINED = ''
+# __C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
 
@@ -62,7 +62,7 @@ __C.TRAIN.EPOCH = 20
 
 __C.TRAIN.START_EPOCH = 0
 
-__C.TRAIN.BATCH_SIZE = 32
+__C.TRAIN.BATCH_SIZE = 64
 
 # edit
 # __C.TRAIN.NUM_WORKERS = 1

@@ -1,4 +1,4 @@
 python ./tools/test_pcb.py 	\
-    --snapshot ./experiments/siamrpn_r50_l234_dwxcorr/model.pth \
-	--dataset VOT2018 \
+    --snapshot ./snapshot/checkpoint_e20.pth \
+	--dataset ./PCB/ \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml
