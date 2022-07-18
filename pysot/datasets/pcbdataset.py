@@ -274,9 +274,8 @@ class PCBDataset():
     def __getitem__(self, index):
         logger.debug("__getitem__")
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
-        # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         
-        # TODO: 加入 neg
+        # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
 
         # get one dataset
@@ -411,6 +410,17 @@ class PCBDataset():
         bbox = np.asarray(bbox)
         bbox = np.transpose(bbox, (1, 0))
         bbox = Corner(bbox[0], bbox[1], bbox[2], bbox[3])
+
+        # 先試試看單一追蹤
+        random_pick = np.random.randint(low=len(bbox[0]), size=1)
+        bbox = np.asarray(bbox)
+        new_bbox = np.zeros((4, 1))
+        new_bbox[0] = bbox[0][random_pick]
+        new_bbox[1] = bbox[1][random_pick]
+        new_bbox[2] = bbox[2][random_pick]
+        new_bbox[3] = bbox[3][random_pick]
+        bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
+        
         cls, delta, delta_weight, overlap = self.anchor_target(
                 bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
         

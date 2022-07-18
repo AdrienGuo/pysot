@@ -95,21 +95,12 @@ def target_overlaps(anchor, target):
 
 def IoU(rect1, rect2):
     """ caculate interection over union
-        原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
-        參考 Faster R-CNN: https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/utils/bbox.pyx
     Args:
-        rect1: (x1, y1, x2, y2), anchor
-        rect2: (x1, y1, x2, y2), target (can call it bbox?)
+        rect1: (x1, y1, x2, y2)
+        rect2: (x1, y1, x2, y2)
     Returns:
-        iou: (N, K) ndarray of overlap between anchor(N) and target(K)
+        iou
     """
-    N = len(rect1[0])# number of anchor
-    K = len(rect2[0])# number of target
-    print(K)
-    iou = np.zeros((N, K), dtype=np.float32)
-    iw, ih, box_area = 0, 0, 0
-    ua = 0
-
     # overlap
     x1, y1, x2, y2 = rect1[0], rect1[1], rect1[2], rect1[3]
     tx1, ty1, tx2, ty2 = rect2[0], rect2[1], rect2[2], rect2[3]
@@ -119,7 +110,7 @@ def IoU(rect1, rect2):
     xx2 = np.minimum(tx2, x2)
     yy2 = np.minimum(ty2, y2)
 
-    ww = np.maximum(0, xx2 - xx1)       # 這裡的 0 可以拿掉吧??
+    ww = np.maximum(0, xx2 - xx1)
     hh = np.maximum(0, yy2 - yy1)
 
     area = (x2-x1) * (y2-y1)
