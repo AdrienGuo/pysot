@@ -51,8 +51,8 @@ __C.TRAIN.OUTPUT_SIZE = 25
 __C.TRAIN.RESUME = ''
 
 # edit
-__C.TRAIN.PRETRAINED = ''
-# __C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
+# __C.TRAIN.PRETRAINED = ''
+__C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
 
@@ -138,8 +138,7 @@ __C.DATASET.SEARCH.FLIP = 0.0
 
 __C.DATASET.SEARCH.COLOR = 1.0
 
-# Sample Negative pair see [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
-# for detail discussion
+# Sample Negative pair see [DaSiamRPN](https://arxiv.org/pdf/1808.06048) for detail discussion
 __C.DATASET.NEG = 0.2
 
 # improve tracking performance for otb100
@@ -189,7 +188,8 @@ __C.BACKBONE.TYPE = 'res50'
 __C.BACKBONE.KWARGS = CN(new_allowed=True)
 
 # Pretrained backbone weights
-__C.BACKBONE.PRETRAINED = ''
+# __C.BACKBONE.PRETRAINED = ''
+__C.BACKBONE.PRETRAINED = './pretrained_models/resnet50.model'
 
 # Train layers
 __C.BACKBONE.TRAIN_LAYERS = ['layer2', 'layer3', 'layer4']
