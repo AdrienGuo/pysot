@@ -57,9 +57,9 @@ class AnchorTarget:
             # cls[:, l:r, l:r] = 0
             
             # randomly get only "one" target from all targets
-            random_pick = np.random.randint(low=len(tcx), size=1)
-            tcx = tcx[random_pick]
-            tcy = tcy[random_pick]
+            # random_pick = np.random.randint(low=len(tcx), size=1)
+            # tcx = tcx[random_pick]
+            # tcy = tcy[random_pick]
 
             cx = size // 2
             cy = size // 2
@@ -93,28 +93,10 @@ class AnchorTarget:
             print(f"anchor_box shape: {anchor_box.shape}")
             print(f"target_stack shape: {target_stack.shape}")
 
-        # 多個 target 的 overlap 算法
-        overlaps = target_overlaps(anchor_box, target_stack)       # overlaps: [N, K]
-        if DEBUG:
-            print(f"overlaps shape: {overlaps.shape}")
-
-        # 找 anchor 要對應到哪個 target
-        # 參考 https://github.com/rbgirshick/py-faster-rcnn/blob/781a917b378dbfdedb45b6a56189a31982da1b43/lib/rpn/anchor_target_layer.py#L130
-        argmax_overlaps = overlaps.argmax(axis=1)
-        max_overlaps = overlaps[np.arange(overlaps.shape[0]), argmax_overlaps]
-        overlap = np.reshape(max_overlaps, anchor_box.shape[-3:])
-        if DEBUG:
-            print(f"overlap shape: {overlap.shape}")
-
-        # 遇到多個 target 的問題了
-        # 參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
-        delta = target_delta(anchor_center, target, argmax_overlaps)    # delta: [4, 5, 25, 25]
-        if DEBUG:
-            print(f"delta shape: {delta.shape}")
-        # delta[0] = (tcx - cx) / w
-        # delta[1] = (tcy - cy) / h
-        # delta[2] = np.log(tw / w)
-        # delta[3] = np.log(th / h)
+        delta[0] = (tcx - cx) / w
+        delta[1] = (tcy - cy) / h
+        delta[2] = np.log(tw / w)
+        delta[3] = np.log(th / h)
 
         pos = np.where(overlap > cfg.TRAIN.THR_HIGH)        # pos (positive): 3維的，就是 anchor_box[-3:] 的維度
         neg = np.where(overlap < cfg.TRAIN.THR_LOW)
