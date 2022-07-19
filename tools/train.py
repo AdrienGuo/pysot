@@ -33,6 +33,7 @@ from pysot.datasets.pcbdataset import PCBDataset
 from pysot.core.config import cfg
 
 import ipdb
+import wandb
 
 logger = logging.getLogger('global')
 parser = argparse.ArgumentParser(description='siamrpn tracking')
@@ -117,7 +118,8 @@ def build_opt_lr(model, current_epoch=0):
                                 weight_decay=cfg.TRAIN.WEIGHT_DECAY)
 
     lr_scheduler = build_lr_scheduler(optimizer, epochs=cfg.TRAIN.EPOCH)
-    lr_scheduler.step(cfg.TRAIN.START_EPOCH)
+    # lr_scheduler.step(cfg.TRAIN.START_EPOCH)
+    # lr_scheduler.step()         # https://github.com/allenai/allennlp/issues/3922
     return optimizer, lr_scheduler
 
 
@@ -188,27 +190,29 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         if cfg.BACKBONE.TRAIN_EPOCH == epoch:
             logger.info('start training backbone.')
             optimizer, lr_scheduler = build_opt_lr(model.module, epoch)
-        lr_scheduler.step(epoch)
         cur_lr = lr_scheduler.get_cur_lr()
+
+        epoch_loss = 0
         for idx, data in enumerate(train_loader):
             tb_idx = idx
-            if idx % num_per_epoch == 0 and idx != 0:
-                for idx, pg in enumerate(optimizer.param_groups):
-                    logger.info('epoch {} lr {}'.format(epoch, pg['lr']))
-                    if rank == 0:
-                        tb_writer.add_scalar('lr/group{}'.format(idx+1),
-                                            pg['lr'], tb_idx)
+            # if idx % num_per_epoch == 0 and idx != 0:
+            #     for idx, pg in enumerate(optimizer.param_groups):
+            #         logger.info('epoch {} lr {}'.format(epoch, pg['lr']))
+            #         if rank == 0:
+            #             tb_writer.add_scalar('lr/group{}'.format(idx+1),
+            #                                 pg['lr'], tb_idx)
 
             data_time = average_reduce(time.time() - end)
-            if rank == 0:
-                tb_writer.add_scalar('time/data', data_time, tb_idx)
+            # if rank == 0:
+            #     tb_writer.add_scalar('time/data', data_time, tb_idx)
 
             outputs = model(data)
-            loss = outputs['total_loss']
+            batch_loss = outputs['total_loss']
+            epoch_loss += batch_loss
 
-            if is_valid_number(loss.data.item()):
+            if is_valid_number(batch_loss.data.item()):
                 optimizer.zero_grad()
-                loss.backward()
+                batch_loss.backward()
                 reduce_gradients(model)
 
                 if rank == 0 and cfg.TRAIN.LOG_GRADS:
@@ -217,6 +221,14 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                 # clip gradient
                 clip_grad_norm_(model.parameters(), cfg.TRAIN.GRAD_CLIP)
                 optimizer.step()
+        
+        lr_scheduler.step()
+        
+        epoch_loss = epoch_loss / len(train_loader)
+        print(f"epoch loss: {epoch_loss}")
+        wandb.log({
+            "loss": epoch_loss
+        })
 
         batch_time = time.time() - end
         batch_info = {}
@@ -228,8 +240,8 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         average_meter.update(**batch_info)
 
         if rank == 0:
-            for k, v in batch_info.items():
-                tb_writer.add_scalar(k, v, tb_idx)
+            # for k, v in batch_info.items():
+            #     tb_writer.add_scalar(k, v, tb_idx)
 
             if (idx+1) % cfg.TRAIN.PRINT_FREQ == 0:
                 info = "Epoch: [{}][{}/{}] lr: {:.6f}\n".format(
@@ -317,4 +329,18 @@ def main():
 
 if __name__ == '__main__':
     seed_torch(args.seed)
+    
+    constants = {
+        "epochs": cfg.TRAIN.EPOCH,
+        "batch_size": cfg.TRAIN.BATCH_SIZE,
+        "lr": cfg.TRAIN.BASE_LR,
+        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    }
+    wandb.init(
+        project = "siamrpnpp",
+        entity = "adrien88",
+        name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
+        config = constants
+    )
+    
     main()

@@ -412,15 +412,15 @@ class PCBDataset():
         bbox = np.transpose(bbox, (1, 0))
         bbox = Corner(bbox[0], bbox[1], bbox[2], bbox[3])
 
-        # 先試試看單一追蹤
-        random_pick = np.random.randint(low=len(bbox[0]), size=1)
-        bbox = np.asarray(bbox)
-        new_bbox = np.zeros((4, 1))
-        new_bbox[0] = bbox[0][random_pick]
-        new_bbox[1] = bbox[1][random_pick]
-        new_bbox[2] = bbox[2][random_pick]
-        new_bbox[3] = bbox[3][random_pick]
-        bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
+        # # 先試試看單一追蹤
+        # random_pick = np.random.randint(low=len(bbox[0]), size=1)
+        # bbox = np.asarray(bbox)
+        # new_bbox = np.zeros((4, 1))
+        # new_bbox[0] = bbox[0][random_pick]
+        # new_bbox[1] = bbox[1][random_pick]
+        # new_bbox[2] = bbox[2][random_pick]
+        # new_bbox[3] = bbox[3][random_pick]
+        # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
         
         cls, delta, delta_weight, overlap = self.anchor_target(
                 bbox, cfg.TRAIN.OUTPUT_SIZE, neg)

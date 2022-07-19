@@ -11,6 +11,7 @@ from pysot.core.config import cfg
 from pysot.utils.bbox import IoU, corner2center, target_overlaps, target_delta
 from pysot.utils.anchor import Anchors
 
+import ipdb
 DEBUG = cfg.DEBUG
 
 class AnchorTarget:
@@ -57,9 +58,9 @@ class AnchorTarget:
             # cls[:, l:r, l:r] = 0
             
             # randomly get only "one" target from all targets
-            # random_pick = np.random.randint(low=len(tcx), size=1)
-            # tcx = tcx[random_pick]
-            # tcy = tcy[random_pick]
+            random_pick = np.random.randint(low=len(tcx), size=1)
+            tcx = tcx[random_pick]
+            tcy = tcy[random_pick]
 
             cx = size // 2
             cy = size // 2
@@ -95,7 +96,9 @@ class AnchorTarget:
             print(f"target_stack shape: {target_stack.shape}")
 
         # 多個 target 的 overlap 算法
-        overlaps = target_overlaps(anchor_box, target_stack)       # overlaps: [N, K]
+        overlaps = target_overlaps(
+            np.ascontiguousarray(anchor_box, dtype=np.float32),
+            np.ascontiguousarray(target_stack, dtype=np.float32))       # overlaps: [N, K]
         if DEBUG:
             print(f"overlaps shape: {overlaps.shape}")
 
