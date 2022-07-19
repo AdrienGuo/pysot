@@ -273,6 +273,7 @@ class PCBDataset():
 
     def __getitem__(self, index):
         logger.debug("__getitem__")
+        # 就只是隨機 gray 而已 (在 augmentation 才會用到，那為甚麼不要在 .xxx_aug() 在做就好啊...)
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
         
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
