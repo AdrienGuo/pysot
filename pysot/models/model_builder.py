@@ -114,10 +114,10 @@ class ModelBuilder(nn.Module):
         print(f"cls_loss: {cls_loss:<8.3f} | loc_loss: {loc_loss:<8.3f}")
 
         outputs = {}
-        outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \
-            cfg.TRAIN.LOC_WEIGHT * loc_loss
         outputs['cls_loss'] = cls_loss
         outputs['loc_loss'] = loc_loss
+        outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \
+                                cfg.TRAIN.LOC_WEIGHT * loc_loss
 
         if cfg.MASK.MASK:
             # TODO

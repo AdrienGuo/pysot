@@ -97,7 +97,6 @@ def target_overlaps(anchor, target):
     assert overlaps[overlaps<0].size == 0, f"overlaps has area smaller than 0!!!"
     # 確保 iou 都小於 1
     assert overlaps[overlaps>1].size == 0, f"overlaps has area bigger than 0!!!"
-    # 這裡還是錯的，我覺得應該是因為 anchor 和 target 的尺度沒有搞好，所以會跑掉
     
     return overlaps
 

@@ -192,7 +192,9 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             optimizer, lr_scheduler = build_opt_lr(model.module, epoch)
         cur_lr = lr_scheduler.get_cur_lr()
 
-        epoch_loss = 0
+        epoch_cls_loss = 0
+        epoch_loc_loss = 0
+        epoch_total_loss = 0
         for idx, data in enumerate(train_loader):
             tb_idx = idx
             # if idx % num_per_epoch == 0 and idx != 0:
@@ -207,12 +209,17 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             #     tb_writer.add_scalar('time/data', data_time, tb_idx)
 
             outputs = model(data)
-            batch_loss = outputs['total_loss']
-            epoch_loss += batch_loss
+            batch_cls_loss = outputs['cls_loss']
+            batch_loc_loss = outputs['loc_loss']
+            batch_total_loss = outputs['total_loss']
+            
+            epoch_cls_loss += batch_cls_loss
+            epoch_loc_loss += batch_loc_loss
+            epoch_total_loss += batch_total_loss
 
-            if is_valid_number(batch_loss.data.item()):
+            if is_valid_number(batch_total_loss.data.item()):
                 optimizer.zero_grad()
-                batch_loss.backward()
+                batch_total_loss.backward()
                 reduce_gradients(model)
 
                 if rank == 0 and cfg.TRAIN.LOG_GRADS:
@@ -224,10 +231,16 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         
         lr_scheduler.step()
         
-        epoch_loss = epoch_loss / len(train_loader)
-        print(f"epoch loss: {epoch_loss}")
+        epoch_cls_loss = epoch_cls_loss / len(train_loader)
+        epoch_loc_loss = epoch_loc_loss / len(train_loader)
+        epoch_total_loss = epoch_total_loss / len(train_loader)
+        print(f"epoch cls loss: {epoch_cls_loss:<5.6f}")
+        print(f"epoch loc loss: {epoch_loc_loss:<5.6f}")
+        print(f"epoch total loss: {epoch_total_loss:<5.6f}")
         wandb.log({
-            "loss": epoch_loss
+            "cls loss": epoch_cls_loss,
+            "loc loss": epoch_loc_loss,
+            "total loss": epoch_total_loss
         })
 
         batch_time = time.time() - end
