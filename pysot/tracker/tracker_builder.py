@@ -10,7 +10,9 @@ from pysot.core.config import cfg
 # 使用亭儀寫好的測試方法
 from pysot.tracker.siamrpn_tracker_amy import SiamRPNTracker
 
-from pysot.tracker.siammask_tracker import SiamMaskTracker
+# from pysot.tracker.siammask_tracker import SiamMaskTracker
+from pysot.tracker.siammask_tracker_amy import SiamMaskTracker
+
 from pysot.tracker.siamrpnlt_tracker import SiamRPNLTTracker
 
 TRACKS = {

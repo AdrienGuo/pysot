@@ -106,6 +106,7 @@ class SiamRPNTracker(SiameseTracker):
         z_crop = self.get_subwindow(img, self.center_pos,
                                     cfg.TRACK.EXEMPLAR_SIZE,
                                     s_z, self.channel_average)
+        
         '''
         
         z_crop = img[int(self.center_pos[1])-int(cfg.TRACK.EXEMPLAR_SIZE/2):int(self.center_pos[1])+int(cfg.TRACK.EXEMPLAR_SIZE/2),int(self.center_pos[0])-int(cfg.TRACK.EXEMPLAR_SIZE/2):int(self.center_pos[0])+int(cfg.TRACK.EXEMPLAR_SIZE/2)]
@@ -127,6 +128,10 @@ class SiamRPNTracker(SiameseTracker):
         #plt.show()
         '''
         self.model.template(z_crop)
+
+        # print(f"z_crop: {z_crop.cpu().numpy().shape}")
+        z_crop = z_crop.cpu().numpy()
+        return z_crop
         
     def nms(self, bbox,scores,image,iou_threshold ):
         cx = bbox[0,:]+self.center_pos[0]
@@ -163,6 +168,7 @@ class SiamRPNTracker(SiameseTracker):
         #print("result:",result)
         
         return result
+
     def track(self, img):
         """
         args:

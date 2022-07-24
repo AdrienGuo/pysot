@@ -17,6 +17,7 @@ pretrained_models/
 wandb/
 snapshot/
 testing_dataset/
+tf/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
