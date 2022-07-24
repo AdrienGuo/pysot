@@ -349,11 +349,11 @@ if __name__ == '__main__':
         "lr": cfg.TRAIN.BASE_LR,
         "weight_decay": cfg.TRAIN.WEIGHT_DECAY
     }
-    wandb.init(
-        project = "siamrpnpp",
-        entity = "adrien88",
-        name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-        config = constants
-    )
+    # wandb.init(
+    #     project = "siamrpnpp",
+    #     entity = "adrien88",
+    #     name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
+    #     config = constants
+    # )
     
     main()

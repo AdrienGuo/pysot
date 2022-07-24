@@ -19,6 +19,11 @@ from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.augmentation import Augmentation
 from pysot.core.config import cfg
 
+
+import pysot.datasets.check_image as check_image
+from torch.utils.data import DataLoader
+import ipdb
+
 logger = logging.getLogger("global")
 
 # setting opencv
@@ -247,6 +252,8 @@ class TrkDataset(Dataset):
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
 
+        # 設定成不會有 negative pair
+        neg = False
         # get one dataset
         if neg:
             template = dataset.get_random_target(index)
@@ -255,6 +262,8 @@ class TrkDataset(Dataset):
             template, search = dataset.get_positive_pair(index)
 
         # get image
+        template_name = template[0]
+        search_name = search[0]
         template_image = cv2.imread(template[0])
         search_image = cv2.imread(search[0])
 
@@ -274,6 +283,25 @@ class TrkDataset(Dataset):
                                        cfg.TRAIN.SEARCH_SIZE,
                                        gray=gray)
 
+        # 畫圖
+        save_dir = "../../image_check/official/"
+        template_name = os.path.join(template_name.split('/')[-2], template_name.split('/')[-1][:-4]).replace('/', '_')
+        search_name = os.path.join(search_name.split('/')[-2], search_name.split('/')[-1][:-4]).replace('/', '_')
+        print(f"template name: {template_name}")
+        print(f"search name: {search_name}")
+        template_path = os.path.join(save_dir, "template", template_name + ".jpg")
+        search_path = os.path.join(save_dir, "search", search_name + ".jpg")
+        bbox_path = os.path.join(save_dir, "bbox", search_name + ".jpg")
+        print(f"template path: {template_path}")
+        print(f"search path: {search_path}")
+        cv2.imwrite(template_path, template)
+        cv2.imwrite(search_path, search)
+
+        print(f"bbox: {bbox}")
+        check_image.draw_bbox(search, bbox, bbox_path)
+
+        ipdb.set_trace()
+
         # get labels
         cls, delta, delta_weight, overlap = self.anchor_target(
                 bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
@@ -287,3 +315,21 @@ class TrkDataset(Dataset):
                 'label_loc_weight': delta_weight,
                 'bbox': np.array(bbox)
                 }
+
+
+if __name__ == "__main__":
+    train_dataset = TrkDataset()
+    train_loader = DataLoader(train_dataset,
+                              batch_size=cfg.TRAIN.BATCH_SIZE,
+                              num_workers=cfg.TRAIN.NUM_WORKERS,
+                              pin_memory=True,
+                              sampler=None)
+    print(len(train_dataset))
+    print(len(train_loader))
+
+    train_dataset.__getitem__(2)
+
+    # for data in enumerate(train_loader):
+    #     pass
+
+    print("="*20 + " Done!! " + "="*20 + "\n")

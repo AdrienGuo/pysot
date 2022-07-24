@@ -16,7 +16,7 @@ from torch.utils.data import Dataset
 
 from pysot.utils.bbox import Corner, center2corner, Center
 from pysot.datasets.anchor_target import AnchorTarget
-from pysot.datasets.augmentation import Augmentation
+from pysot.datasets.pcb_augmentation import Augmentation
 from pysot.core.config import cfg
 
 logger = logging.getLogger("global")
@@ -44,8 +44,9 @@ class PCBDataset():
         self.anchor_target = AnchorTarget()
 
         # 可以不用迴圈
-        for name in cfg.DATASET.NAMES:
-            data_cfg = getattr(cfg.DATASET, name)
+        # for name in cfg.DATASET.NAMES:
+        #     data_cfg = getattr(cfg.DATASET, name)
+        data_cfg = getattr(cfg.DATASET, "CUSTOM")
         
         self.root = data_cfg.ROOT
         self.anno = data_cfg.ANNO
@@ -56,24 +57,20 @@ class PCBDataset():
 
         # data augmentation
         self.template_aug = Augmentation(
-                cfg.DATASET.TEMPLATE.SHIFT,
-                cfg.DATASET.TEMPLATE.SCALE,
-                cfg.DATASET.TEMPLATE.BLUR,
-                cfg.DATASET.TEMPLATE.FLIP,
-                cfg.DATASET.TEMPLATE.COLOR
-            )
-        self.search_aug = Augmentation(
-                cfg.DATASET.SEARCH.SHIFT,
-                cfg.DATASET.SEARCH.SCALE,
-                cfg.DATASET.SEARCH.BLUR,
-                cfg.DATASET.SEARCH.FLIP,
-                cfg.DATASET.SEARCH.COLOR
-            )
+                                "template"
+                            )
+        # self.search_aug = Augmentation(
+        #         cfg.DATASET.SEARCH.SHIFT,
+        #         cfg.DATASET.SEARCH.SCALE,
+        #         cfg.DATASET.SEARCH.BLUR,
+        #         cfg.DATASET.SEARCH.FLIP,
+        #         cfg.DATASET.SEARCH.COLOR
+        #     )
 
     def _make_dataset(self, dir_path):
         """ 回傳資料
         Return:
-            images (list): [[path, 類別], ...]
+            images (list): [ [path, 類別], ...]
             template (list): 
             search (list): 
         """
@@ -88,17 +85,16 @@ class PCBDataset():
                 box = []
                 if file.endswith(('.jpg', '.png', 'bmp')):
                     path = os.path.join(root, file)
-                    anno_path = os.path.join(self.anno, file[:-3]+"txt")        # 改成 .txt (annotation 檔案)
-                    assert os.path.isfile(anno_path), f"This annotation path doesn't exist: {anno_path}"
-                    # 非 text 類型
+                    anno_path = os.path.join(self.anno, file[:-3] + "txt")        # 改成 .txt (annotation 檔案)
+                    # 不是 text 的類型
                     if os.path.isfile(anno_path):
                         f = open(anno_path, 'r')
                         lines = f.readlines()
                         anno = []
                         for line in lines:
-                            line=line.strip('\n')
-                            line=line.split(' ')
-                            line = list(map(float, line))
+                            line = line.strip('\n')
+                            line = line.split(' ')
+                            line = list(map(lambda x: float(x), line))
                             anno.append(line)
 
                         for i in range(len(anno)):
@@ -114,10 +110,11 @@ class PCBDataset():
                                         box.append([anno[j][1], anno[j][2], anno[j][3], anno[j][4]])
                                 box = np.stack(box).astype(np.float32)
                                 search.append(box)
-                    
                     # text 類型
-                    elif os.path.isfile(os.path.join(self.anno, file[:-3]+"label")):
-                        f = open(os.path.join(self.anno, file[:-3]+"label"), 'r')
+                    else:
+                        anno_path = os.path.join(self.anno, file[:-3] + "label")
+                        assert os.path.isfile(anno_path), f"{anno_path} does not exist!!"
+                        f = open(anno_path, 'r')
                         img = cv2.imread(path)
                         imh, imw = img.shape[:2]
                         lines = f.readlines()
@@ -148,33 +145,35 @@ class PCBDataset():
                                         box.append([cx/imw, cy/imh, w/imw, h/imh])
                                 box = np.stack(box).astype(np.float32)
                                 search.append(box)
-        
         return images, template, search
     
-    def get_image_anno(self, index, type):
+    def get_image_anno(self, index, arg):
         """ 
         Return:
             imgage_path: 
             image_anno: 
         """
         image_path, _ = self.images[index]
-        if type=="template":
-            image_anno = self.template[index]
-        elif type=="search":
-            image_anno = self.search[index]
+        # print(f"type: {type(arg)}, {type(arg)}")
+        image_anno = arg[index]
+        # if type=="template":
+        #     image_anno = self.template[index]
+        # elif type=="search":
+        #     image_anno = self.search[index]
+        # print(f"image_anno: {image_anno}")
         image_anno = np.stack(image_anno).astype(np.float32)        # 這要幹嘛? 回傳的image_anno不是只有一個物件嗎?
         return image_path, image_anno
 
     def get_positive_pair(self, index):
-        return self.get_image_anno(index, "template"), \
-               self.get_image_anno(index, "search")
+        return self.get_image_anno(index, self.template), \
+               self.get_image_anno(index, self.search)
     
     def get_neg_pair(self, type, index=None):
         if type == "template":
-            return self.get_image_anno(index, "template")
+            return self.get_image_anno(index, self.template)
         elif type == "search":
             index = np.random.randint(low=0, high=len(self.images))
-            return self.get_image_anno(index, "search")
+            return self.get_image_anno(index, self.search)
     
     def _get_bbox(self, image, shape, type):
         """
@@ -281,6 +280,7 @@ class PCBDataset():
 
         # get one dataset
         # 這個 if 還需要修改成 template 和 search "一定" 不會互相對應到同一張圖片的
+        neg = False
         if neg:
             template = self.get_neg_pair("template", index)
             search = self.get_neg_pair("search")
@@ -289,7 +289,7 @@ class PCBDataset():
         
         ####################################################################
         # Step 1.
-        # get template and search images
+        # get template and search images (raw data)
         ####################################################################
         template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
@@ -308,19 +308,31 @@ class PCBDataset():
             print(f"shape template, search: {template[1].shape}, {search[1].shape}")
         assert template_image is not None, f"error image: {template[0]}"
 
+
         ####################################################################
         # Step 2.
         # crop template image, 
         # and get the scale which will be used in Step 3.
-        ####################################################################
+        # 
+        # === 定義代號 ===
         # z: template
         # x: search
+        ####################################################################
         z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
-        template_bbox = template[1]
+        template_box = template[1]
         search_bbox = search[1]
-        template_bbox_corner = center2corner(template_bbox)
-        template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
+        # template_bbox_corner = center2corner(template_box)
+        # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
         
+        template_image, _ = self.template_aug(template_image,
+                                        template_box,
+                                        cfg.TRAIN.EXEMPLAR_SIZE)
+        
+        cv2.imwrite("image_check/trash/template.jpg", template_image)
+        
+        ipdb.set_trace()
+        
+
         ####################################################################
         # Step 3.
         # crop search image according to scale
@@ -328,12 +340,12 @@ class PCBDataset():
         # 同樣要處理 search 的 bbox
         ####################################################################
         if (z_h * search_image.shape[0] > cfg.TRAIN.SEARCH_SIZE) or (z_w * search_image.shape[1] > cfg.TRAIN.SEARCH_SIZE):
-            center_crop = transforms.CenterCrop(cfg.TRAIN.SEARCH_SIZE)
+            centercrop = transforms.CenterCrop(cfg.TRAIN.SEARCH_SIZE)
             resize = transforms.Resize([cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE])
-            search_image = Image.fromarray((cv2.cvtColor(search_image, cv2.COLOR_BGR2RGB)))     # 我不懂為甚麼又要用 PIL 來讀影像??。看懂了，因為 transforms.centercrop 不能用 cv2
-            s_resize = resize(search_image)       # s_resize 應該是一張圖片
+            search_image = Image.fromarray((cv2.cvtColor(search_image, cv2.COLOR_BGR2RGB)))     # 因為 transforms.centercrop 不能用 cv2
+            s_resize = resize(search_image)
             origin_size = s_resize.size
-            search_image = center_crop(s_resize)
+            search_image = centercrop(s_resize)
         
             if origin_size[0] < cfg.TRAIN.SEARCH_SIZE: #x
                 temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[0]) / 2
@@ -392,12 +404,12 @@ class PCBDataset():
             print(f"search_box type: {type(search_box)}")
             print(f"search_box:\n {search_box}")
         
-        """ 
         # (image, bbox) is the return data type
+        """ 
         template_image, _ = self.template_aug(template_image,
-                                        template_box,
-                                        cfg.TRAIN.EXEMPLAR_SIZE,
-                                        gray=gray)
+                                            template_box,
+                                            cfg.TRAIN.EXEMPLAR_SIZE,
+                                            gray=gray)
 
         search_image, bbox = self.search_aug(search_image,
                                        search_box,
@@ -473,16 +485,18 @@ class PCBDataset():
     
 
 if __name__ == "__main__":
-    dataset = PCBDataset()
-    dataset.__getitem__(2)
+    print(f"Loading dataset...")
+    train_dataset = PCBDataset()
+    train_dataset.__getitem__(2)
+    print(f"Loading dataset has done!")
 
-    # train_loader = DataLoader(dataset,
+    # train_loader = DataLoader(train_dataset,
     #                           batch_size=cfg.TRAIN.BATCH_SIZE,
     #                           num_workers=cfg.TRAIN.NUM_WORKERS,
-    #                           collate_fn=dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
+    #                           collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
     #                           pin_memory=True,
     #                           sampler=None)
-    # print(len(dataset))
+    # print(len(train_dataset))
     # print(len(train_loader))
 
     # for data in enumerate(train_loader):

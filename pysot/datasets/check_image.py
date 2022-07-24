@@ -1,6 +1,7 @@
 # This file only used for checking the images.
 # Nothing relates to the traing process.
 
+from fileinput import filename
 import cv2
 import numpy as np
 from pysot.utils.bbox import center2corner
@@ -27,12 +28,16 @@ def draw_bbox(image, bbox, file_name):
     image_new = np.copy(image)
     bbox = np.asarray(bbox, dtype=np.int32)
     num_bbox = bbox.shape[0]
+    print(f"bbox: {bbox}")
 
     # draw targets
-    for index in range(num_bbox):
-        cur_bbox = bbox[index]
-        cv2.rectangle(image_new, (cur_bbox[0], cur_bbox[1]), (cur_bbox[2], cur_bbox[3]), color=(0, 255, 0), thickness=2)
+    # for index in range(num_bbox):
+    #     cur_bbox = bbox[index]
+    #     cv2.rectangle(image_new, (cur_bbox[0], cur_bbox[1]), (cur_bbox[2], cur_bbox[3]), color=(0, 255, 0), thickness=2)
+    cv2.rectangle(image_new, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color=(0, 255, 0), thickness=5)
 
-    save_path = save_dir + "bbox/" + file_name
-    cv2.imwrite(save_path, image_new)
-    print(f"save bbox image_new to: {save_path}")
+    # save_path = save_dir + "bbox/" + file_name
+    # save_path = "bbox/" + file_name
+
+    cv2.imwrite(file_name, image_new)
+    print(f"save bbox image_new to: {file_name}")
