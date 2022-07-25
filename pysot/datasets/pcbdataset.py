@@ -66,6 +66,9 @@ class PCBDataset():
         #         cfg.DATASET.SEARCH.FLIP,
         #         cfg.DATASET.SEARCH.COLOR
         #     )
+        self.search_aug = Augmentation(
+                                "search"
+                            )
 
     def _make_dataset(self, dir_path):
         """ 回傳資料
@@ -153,7 +156,7 @@ class PCBDataset():
             imgage_path: 
             image_anno: 
         """
-        image_path, _ = self.images[index]
+        image_path, template_cls = self.images[index]
         # print(f"type: {type(arg)}, {type(arg)}")
         image_anno = arg[index]
         # if type=="template":
@@ -161,7 +164,7 @@ class PCBDataset():
         # elif type=="search":
         #     image_anno = self.search[index]
         # print(f"image_anno: {image_anno}")
-        image_anno = np.stack(image_anno).astype(np.float32)        # 這要幹嘛? 回傳的image_anno不是只有一個物件嗎?
+        # image_anno = np.stack(image_anno).astype(np.float32)        # 這要幹嘛? 回傳的image_anno不是只有一個物件嗎?
         return image_path, image_anno
 
     def get_positive_pair(self, index):
@@ -318,20 +321,20 @@ class PCBDataset():
         # z: template
         # x: search
         ####################################################################
-        z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
+        # z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
         template_box = template[1]
         search_bbox = search[1]
+
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
         
         template_image, _ = self.template_aug(template_image,
-                                        template_box,
-                                        cfg.TRAIN.EXEMPLAR_SIZE)
-        
-        cv2.imwrite("image_check/trash/template.jpg", template_image)
-        
-        ipdb.set_trace()
-        
+                                              template_box,
+                                              cfg.TRAIN.EXEMPLAR_SIZE)
+
+        search_image, bbox = self.search_aug(search_image,
+                                             search_bbox,
+                                             cfg.TRAIN.SEARCH_SIZE)        
 
         ####################################################################
         # Step 3.
@@ -339,90 +342,90 @@ class PCBDataset():
         # search crop (like SiamFC) 但影像都放在左上角 (不懂??)
         # 同樣要處理 search 的 bbox
         ####################################################################
-        if (z_h * search_image.shape[0] > cfg.TRAIN.SEARCH_SIZE) or (z_w * search_image.shape[1] > cfg.TRAIN.SEARCH_SIZE):
-            centercrop = transforms.CenterCrop(cfg.TRAIN.SEARCH_SIZE)
-            resize = transforms.Resize([cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE])
-            search_image = Image.fromarray((cv2.cvtColor(search_image, cv2.COLOR_BGR2RGB)))     # 因為 transforms.centercrop 不能用 cv2
-            s_resize = resize(search_image)
-            origin_size = s_resize.size
-            search_image = centercrop(s_resize)
+        # if (z_h * search_image.shape[0] > cfg.TRAIN.SEARCH_SIZE) or (z_w * search_image.shape[1] > cfg.TRAIN.SEARCH_SIZE):
+        #     centercrop = transforms.CenterCrop(cfg.TRAIN.SEARCH_SIZE)
+        #     resize = transforms.Resize([cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE])
+        #     search_image = Image.fromarray((cv2.cvtColor(search_image, cv2.COLOR_BGR2RGB)))     # 因為 transforms.centercrop 不能用 cv2
+        #     s_resize = resize(search_image)
+        #     origin_size = s_resize.size
+        #     search_image = centercrop(s_resize)
         
-            if origin_size[0] < cfg.TRAIN.SEARCH_SIZE: #x
-                temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[0]) / 2
-                direction = 'x'
-            elif origin_size[1] < cfg.TRAIN.SEARCH_SIZE: #y
-                temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[1]) / 2
-                direction = 'y'
-            else:
-                temp=0
-                direction = 'x'
+        #     if origin_size[0] < cfg.TRAIN.SEARCH_SIZE: #x
+        #         temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[0]) / 2
+        #         direction = 'x'
+        #     elif origin_size[1] < cfg.TRAIN.SEARCH_SIZE: #y
+        #         temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[1]) / 2
+        #         direction = 'y'
+        #     else:
+        #         temp=0
+        #         direction = 'x'
 
-            # get bounding box
-            # 亭儀的 _get_bbox 要這樣寫應該是因為他有把 search image 移動過，所以 bbox 也要相對地移動
-            search_box = self._get_bbox_amy(search[1],"search",direction,origin_size,temp)
-            search_image = cv2.cvtColor(np.asarray(search_image), cv2.COLOR_RGB2BGR)
-            bbox = search_box
-            # bbox 和 search_box 竟然會是不一樣的 data type!!?
-            # bbox: corner, search_box: array
-        else:
-            cx = (z_w/2)*scale[0]+scale[2]
-            cy = (z_h/2)*scale[1]+scale[3]
-            if (z_w*scale[0] < 300 ) and (z_h*scale[1] < 300 ):
-                mapping = np.array([[scale[0], 0, 300-cx],
-                            [0, scale[1], 300-cy]]).astype(np.float)
-                scale[2] = 300-cx
-                scale[3] = 300-cy
-                check=1
-            else:
-                mapping = np.array([[scale[0], 0, 0],
-                            [0, scale[1], 0]]).astype(np.float)
-                check=0
+        #     # get bounding box
+        #     # 亭儀的 _get_bbox 要這樣寫應該是因為他有把 search image 移動過，所以 bbox 也要相對地移動
+        #     search_box = self._get_bbox_amy(search[1],"search",direction,origin_size,temp)
+        #     search_image = cv2.cvtColor(np.asarray(search_image), cv2.COLOR_RGB2BGR)
+        #     bbox = search_box
+        #     # bbox 和 search_box 竟然會是不一樣的 data type!!?
+        #     # bbox: corner, search_box: array
+        # else:
+        #     cx = (z_w/2)*scale[0]+scale[2]
+        #     cy = (z_h/2)*scale[1]+scale[3]
+        #     if (z_w*scale[0] < 300 ) and (z_h*scale[1] < 300 ):
+        #         mapping = np.array([[scale[0], 0, 300-cx],
+        #                     [0, scale[1], 300-cy]]).astype(np.float)
+        #         scale[2] = 300-cx
+        #         scale[3] = 300-cy
+        #         check=1
+        #     else:
+        #         mapping = np.array([[scale[0], 0, 0],
+        #                     [0, scale[1], 0]]).astype(np.float)
+        #         check=0
             
-            search_image2 = cv2.warpAffine(search_image, mapping, (600, 600), 
-                                   borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
+        #     search_image2 = cv2.warpAffine(search_image, mapping, (600, 600), 
+        #                            borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
         
-            search_box = self._search_gt_box(search_image,search[1],scale,check)
-            bbox = search_box
-            search_image = search_image2
+        #     search_box = self._search_gt_box(search_image,search[1],scale,check)
+        #     bbox = search_box
+        #     search_image = search_image2
         
-        # save image
-        if DEBUG:
-            file_name = template[0].split("/")[-1]
-            check_image.draw_bbox(search_image, bbox, file_name)
-            template_image_name = "template_" + template[0].split("/")[-1]
-            check_image.save_image("template", template_image, template_image_name)
-            search_image_name = "search_" + search[0].split("/")[-1]
-            check_image.save_image("search", search_image, search_image_name)
+        # # save image
+        # if DEBUG:
+        #     file_name = template[0].split("/")[-1]
+        #     check_image.draw_bbox(search_image, bbox, file_name)
+        #     template_image_name = "template_" + template[0].split("/")[-1]
+        #     check_image.save_image("template", template_image, template_image_name)
+        #     search_image_name = "search_" + search[0].split("/")[-1]
+        #     check_image.save_image("search", search_image, search_image_name)
 
-        # get bounding box
-        # 先用 255*255 就好 (跑起來比較快)
-        # template_box = self._get_bbox(template_image, template[1], "template")
-        # search_box = self._get_bbox(search_image, search[1], "search")
+        # # get bounding box
+        # # 先用 255*255 就好 (跑起來比較快)
+        # # template_box = self._get_bbox(template_image, template[1], "template")
+        # # search_box = self._get_bbox(search_image, search[1], "search")
 
-        if DEBUG:
-            print(f"search_image shape: {search_image.shape}")
-            print(f"search_box type: {type(search_box)}")
-            print(f"search_box:\n {search_box}")
+        # if DEBUG:
+        #     print(f"search_image shape: {search_image.shape}")
+        #     print(f"search_box type: {type(search_box)}")
+        #     print(f"search_box:\n {search_box}")
         
-        # (image, bbox) is the return data type
-        """ 
-        template_image, _ = self.template_aug(template_image,
-                                            template_box,
-                                            cfg.TRAIN.EXEMPLAR_SIZE,
-                                            gray=gray)
+        # # (image, bbox) is the return data type
+        # """ 
+        # template_image, _ = self.template_aug(template_image,
+        #                                     template_box,
+        #                                     cfg.TRAIN.EXEMPLAR_SIZE,
+        #                                     gray=gray)
 
-        search_image, bbox = self.search_aug(search_image,
-                                       search_box,
-                                       cfg.TRAIN.SEARCH_SIZE,
-                                       gray=gray)
-        """
+        # search_image, bbox = self.search_aug(search_image,
+        #                                search_box,
+        #                                cfg.TRAIN.SEARCH_SIZE,
+        #                                gray=gray)
+        # """
         
         ####################################################################
         # Step 4.
         # get the label for training
         ####################################################################
         bbox = np.asarray(bbox)
-        bbox = np.transpose(bbox, (1, 0))
+        # bbox = np.transpose(bbox, (1, 0))
         bbox = Corner(bbox[0], bbox[1], bbox[2], bbox[3])
 
         # # 先試試看單一追蹤
@@ -487,7 +490,7 @@ class PCBDataset():
 if __name__ == "__main__":
     print(f"Loading dataset...")
     train_dataset = PCBDataset()
-    train_dataset.__getitem__(2)
+    train_dataset.__getitem__(0)
     print(f"Loading dataset has done!")
 
     # train_loader = DataLoader(train_dataset,
