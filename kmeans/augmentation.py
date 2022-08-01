@@ -10,16 +10,22 @@ from pysot.utils.bbox import Center, Corner, center2corner, corner2center
 def template_crop(image, bbox, size):
     img_h, img_w = image.shape[:2]
 
-    template_w = bbox[2]
-    template_h = bbox[3]
+    template_w = bbox[2] * img_w
+    template_h = bbox[3] * img_h
 
     if img_w >= img_h:
         r = size / img_w
     else:
         r = size / img_h
 
-    template_w = template_w * r * size
-    template_h = template_h * r * size
+    template_w = template_w * r
+    template_h = template_h * r
+
+    assert template_w < 300, f"{template_w}"
+    assert template_h < 300, f"{template_h}, \n \
+    img: {img_w}, {img_h}, \n \
+    template: {bbox[2]}, {bbox[3]} \n \
+    template: {template_w}, {template_h}"
 
     return template_w, template_h
 
