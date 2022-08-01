@@ -1,38 +1,29 @@
 # Copyright (c) SenseTime. All Rights Reserved.
-
-from __future__ import absolute_import, annotations
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, annotations, division, print_function,
+                        unicode_literals)
 
 import argparse
 import os
+import re
 from unittest import TestLoader
 
 import cv2
-import torch
-import numpy as np
-
-from PIL import Image , ImageDraw , ImageFont
-import numpy as np
+import ipdb
 import matplotlib.pyplot as plt
-import os
-import re
+import numpy as np
+import torch
 import torchvision.transforms.functional as F
-from torchvision import transforms
-
+from PIL import Image, ImageDraw, ImageFont
 from pysot.core.config import cfg
+from pysot.datasets.pcbdataset_test import PCBDatasetTest
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
 from pysot.utils.bbox import get_axis_aligned_bbox
 from pysot.utils.model_load import load_pretrain
 from toolkit.datasets import DatasetFactory
-from toolkit.utils.region import vot_overlap, vot_float2str
-
-import torchvision.transforms.functional as F
-
-from pysot.datasets.pcbdataset_test import PCBDatasetTest
+from toolkit.utils.region import vot_float2str, vot_overlap
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--dataset', type=str,
@@ -300,9 +291,9 @@ def test(test_loader, tracker, inner_dir):
         if not os.path.isdir(search_dir):
             os.makedirs(search_dir)
             print(f"create dir: {search_dir}")
-            search_path = os.path.join(search_dir, image_name + ".jpg")
-            cv2.imwrite(search_path, image)
-            print(f"save search image to: {search_path}")
+        search_path = os.path.join(search_dir, image_name + ".jpg")
+        cv2.imwrite(search_path, image)
+        print(f"save search image to: {search_path}")
 
         template_x1y1x2y2 = data['template'].numpy()    # turn tensor to numpy
         # print(f"template: {template_x1y1x2y2}")
@@ -331,6 +322,7 @@ def test(test_loader, tracker, inner_dir):
         pred_bboxes.append(pred_bbox)
 
         outputs = tracker.track(image)
+
         scores.append(outputs['best_score'])
         pred_bboxes.append(outputs['bbox'])
         # print(f"pred_bboxes: {pred_bboxes}")

@@ -16,7 +16,7 @@
 
 python ./tools/test_pcb.py 	\
     --snapshot ./snapshot/checkpoint_e20.pth \
-	--config ./tf/pysot/experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
+	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
 	--dataset ./testing_dataset/PCB/val/ \
 	--annotation ./testing_dataset/PCB/val/ \
 	--save_dir ./results/

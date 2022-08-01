@@ -241,9 +241,8 @@ class SiamRPNTracker(SiameseTracker):
             bbox = pred_bbox[:, result[i]] / scale_z
             lr = penalty[result[i]] * score[result[i]] * cfg.TRACK.LR
             scores = score[result[i]]
-            best_score.append(scores)
-            print("scores:",scores)
             if scores >=0.5:
+                best_score.append(scores)
                 cx = bbox[0] + self.center_pos[0]
                 cy = bbox[1] + self.center_pos[1]
                 #cx = bbox[0]*img.shape[1]
