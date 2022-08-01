@@ -14,8 +14,8 @@
 # --dataset ./testing_dataset/PCB/train/
 # --dataset ./testing_dataset/PCB/val/
 
-python ./tools/test_pcb.py 	\
-    --snapshot ./snapshot/checkpoint_e20.pth \
+python ./tools/test_pcb.py \
+    --snapshot ./save_models/my_model/model_e60.pth \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
 	--dataset ./testing_dataset/PCB/val/ \
 	--annotation ./testing_dataset/PCB/val/ \

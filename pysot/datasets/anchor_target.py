@@ -34,7 +34,8 @@ class AnchorTarget:
             delta_weight: 
             overlap: 
         """
-        anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
+        # anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
+        anchor_num = cfg.ANCHOR.ANCHOR_NUM
 
         # -1 ignore 0 negative 1 positive
         cls = -1 * np.ones((anchor_num, size, size), dtype=np.int64)

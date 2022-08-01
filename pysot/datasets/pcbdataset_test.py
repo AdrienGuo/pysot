@@ -272,7 +272,7 @@ class PCBDatasetTest():
         ####################################################################
         template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
-        
+
         image_h, image_w = search_image.shape[:2]
         template_box = center2corner(template[1])
         template_x1, template_x2 = image_w * template_box[0], image_w * template_box[2]

@@ -272,12 +272,12 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                             average_meter.batch_time.avg,
                             cfg.TRAIN.EPOCH * num_per_epoch)
         
-        if get_rank() == 0:
+        if get_rank() == 0 and epoch % cfg.TRAIN_SAVE_FREQ == 0:
             torch.save(
                     {'epoch': epoch,
                     'state_dict': model.module.state_dict(),
                     'optimizer': optimizer.state_dict()},
-                    cfg.TRAIN.SNAPSHOT_DIR+'/checkpoint_e%d.pth' % (epoch))
+                    cfg.TRAIN.SNAPSHOT_DIR + "/kmeans-11" + '/checkpoint_e%d.pth' % (epoch))
         end = time.time()
 
 
@@ -343,17 +343,17 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
     
-    constants = {
-        "epochs": cfg.TRAIN.EPOCH,
-        "batch_size": cfg.TRAIN.BATCH_SIZE,
-        "lr": cfg.TRAIN.BASE_LR,
-        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    }
-    wandb.init(
-        project = "siamrpnpp",
-        entity = "adrien88",
-        name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-        config = constants
-    )
+    # constants = {
+    #     "epochs": cfg.TRAIN.EPOCH,
+    #     "batch_size": cfg.TRAIN.BATCH_SIZE,
+    #     "lr": cfg.TRAIN.BASE_LR,
+    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    # }
+    # wandb.init(
+    #     project = "siamrpnpp",
+    #     entity = "adrien88",
+    #     name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
+    #     config = constants
+    # )
     
     main()
