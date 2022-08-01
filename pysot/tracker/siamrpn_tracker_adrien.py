@@ -1,26 +1,22 @@
 # Copyright (c) SenseTime. All Rights Reserved.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-import numpy as np
-import torch.nn.functional as F
-
-from pysot.core.config import cfg
-from pysot.utils.anchor import Anchors
-from pysot.tracker.base_tracker import SiameseTracker
-
-import matplotlib.pyplot as plt
-from torchvision import transforms
-from PIL import Image
 import cv2
+import ipdb
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn.functional as F
+from PIL import Image
+from pysot.core.config import cfg
+from pysot.tracker.base_tracker import SiameseTracker
+from pysot.utils.anchor import Anchors
+from torchvision import transforms
+
 from .transform_amy import get_transforms
 
-import ipdb
 
 class SiamRPNTracker(SiameseTracker):
     def __init__(self, model):
@@ -35,10 +31,20 @@ class SiamRPNTracker(SiameseTracker):
         #print("anchor:",len(cfg.ANCHOR.SCALES))
         hanning = np.hanning(self.score_size)
         window = np.outer(hanning, hanning)     # 外積
-        self.window = np.tile(window.flatten(), self.anchor_num)
-        self.anchors = self.generate_anchor(self.score_size)
+        # self.window = np.tile(window.flatten(), self.anchor_num)
+        # self.anchors = self.generate_anchor(self.score_size)    # (5*25*25, 4)
+        
+        self.anchors = Anchors(cfg.ANCHOR.STRIDE,
+                               cfg.ANCHOR.RATIOS,
+                               cfg.ANCHOR.SCALES)
+        self.anchors.generate_all_anchors(im_c=cfg.TRAIN.SEARCH_SIZE // 2,
+                                          size=cfg.TRAIN.OUTPUT_SIZE)
+        self.anchor_center = self.anchors.all_anchors[1]    # (4, num_anchor, 25, 25)
+        self.anchor_center = np.reshape(self.anchor_center, (4, -1))
+        self.anchor_center = np.transpose(self.anchor_center, (1, 0))
+        
         self.model = model
-        self.model.eval()
+        # self.model.eval()
 
     def generate_anchor(self, score_size):
         """
@@ -65,7 +71,7 @@ class SiamRPNTracker(SiameseTracker):
                  np.tile(yy.flatten(), (anchor_num, 1)).flatten()
         anchor[:, 0], anchor[:, 1] = xx.astype(np.float32), yy.astype(np.float32)
         
-        return anchor
+        return anchor   # (5*25*25, 4)
 
     def _convert_score(self, score):
         # (1, 2*5, 25, 25) -> (2*5, 25, 25, 1) -> contiguous -> (2, 5*25*25) -> (5*25*25, 2)
@@ -78,8 +84,10 @@ class SiamRPNTracker(SiameseTracker):
         delta = delta.permute(1, 2, 3, 0).contiguous().view(4, -1)
         
         delta = delta.data.cpu().numpy()
+        # print(f"anchor 0: {anchor[:, 2]}")
+        # ipdb.set_trace()
 
-        delta[0, :] = delta[0, :] * anchor[:, 2] + anchor[:, 0]
+        delta[0, :] = delta[0, :] * anchor[:, 2] + anchor[:, 0]     # cx (real)，應該不是誤差了 (?)
         delta[1, :] = delta[1, :] * anchor[:, 3] + anchor[:, 1]
         delta[2, :] = np.exp(delta[2, :]) * anchor[:, 2]
         delta[3, :] = np.exp(delta[3, :]) * anchor[:, 3]
@@ -92,11 +100,12 @@ class SiamRPNTracker(SiameseTracker):
         height = max(10, min(height, boundary[0]))
         return cx, cy, width, height
 
-    def init(self, img, bbox):
+    def init(self, img, bbox, template_image):
         """
-        args:
+        Args:
             img(np.ndarray): BGR image
             bbox: (x1, y1, w, h) bbox
+            template_image (batch, w, h, channel), dtype=tensor: template image that had been preprocessed
         """
         self.center_pos = np.array([bbox[0] + (bbox[2]-1)/2,
                                     bbox[1] + (bbox[3]-1)/2])
@@ -110,9 +119,9 @@ class SiamRPNTracker(SiameseTracker):
         # calculate channle average
         self.channel_average = np.mean(img, axis=(0, 1))
         
-        #print("average:",self.channel_average)
+        # print("average:",self.channel_average)
         # get crop
-        
+        # TODO: 改變 z_crop 的切法
         z_crop = self.get_subwindow(img,
                                     self.center_pos,
                                     cfg.TRACK.EXEMPLAR_SIZE,
@@ -132,25 +141,34 @@ class SiamRPNTracker(SiameseTracker):
         #plt.imshow(imgs)
         #plt.show()
         '''
-        self.model.template(z_crop)
+        
+        if cfg.CUDA:
+            template_image = template_image.cuda()
+        self.model.template(template_image)
 
-        # print(f"z_crop: {z_crop.cpu().numpy().shape}")
-        z_crop = z_crop.cpu().numpy()
-        return z_crop
+        template_image = template_image.cpu().numpy()
+        # print(f"template: {template_image.shape}")
+        # cv2.imwrite("./image_check/trash/template.jpg", template_image[0].transpose(1, 2, 0))
+        # print("save image")
+        # ipdb.set_trace()
+
+        return template_image
         
-    def nms(self, bbox, scores, image, iou_threshold):
-        # bbox[0] 是 anchor 的 x 的中心點要位移的距離，
-        # 所以再加上原本 anchor x 軸的中心點，就變成預測的框框的 x 軸中心點座標 = cx
-        # (y 軸也同理)
-        cx = bbox[0, :] + self.center_pos[0]
-        cy = bbox[1, :] + self.center_pos[1]
-        width = bbox[2, :]#*image.shape[1]
-        height = bbox[3, :]#*image.shape[0]
+    def NMS(self, bbox, scores, iou_threshold):
+        """ non maximum suppression
+        Args:
+            bbox (4, 5*25*25), (cx, cy, w, h (#real))
+            scores (5*25*25, )
+        """
+        cx = bbox[0, :]
+        cy = bbox[1, :]
+        width = bbox[2, :]
+        height = bbox[3, :]
         
-        x1 = cx - width/np.array(2)
-        y1 = cy - height/np.array(2)
-        x2 = x1 + width
-        y2 = y1 + height
+        x1 = cx - width / np.array(2)
+        y1 = cy - height / np.array(2)
+        x2 = cx + width / np.array(2)
+        y2 = cy + height / np.array(2)
         areas = (x2 - x1) * (y2 - y1)
         
         # 结果列表
@@ -171,26 +189,26 @@ class SiamRPNTracker(SiameseTracker):
             idx = np.where(ious <= iou_threshold)[0]
             index = index[idx + 1]  # 剩下的框
         #print("results:",results)
-        
+
         return results
 
-    def track(self, img):
+    def track(self, img, search_image):
         """
         Args:
             img(np.ndarray): BGR image
+            search_image: search image that had been preprocessed in dataset
         Return:
             bbox(list): [x, y, width, height]
         """
-       
+
         w_z = self.size[0] + cfg.TRACK.CONTEXT_AMOUNT * np.sum(self.size)
         h_z = self.size[1] + cfg.TRACK.CONTEXT_AMOUNT * np.sum(self.size)
         s_z = np.sqrt(w_z * h_z)
         scale_z = cfg.TRACK.EXEMPLAR_SIZE / s_z
         s_x = s_z * (cfg.TRACK.INSTANCE_SIZE / cfg.TRACK.EXEMPLAR_SIZE)
         
-        
         center = (img.shape[1]/2,img.shape[0]/2)
-        self.center_pos = np.array([img.shape[1]/2,img.shape[0]/2])
+        self.center_pos = np.array([img.shape[1]/2, img.shape[0]/2])
         x_crop = self.get_subwindow(img,
                                     self.center_pos,
                                     cfg.TRACK.INSTANCE_SIZE,
@@ -209,80 +227,89 @@ class SiamRPNTracker(SiameseTracker):
         plt.imshow(imgs)
         plt.show()
         '''
-        
-        outputs = self.model.track(x_crop)                              # (1, 2*anchor_num, 25, 25)
-        scores = self._convert_score(outputs['cls'])                     # (5*25*25, )
-        pred_bbox = self._convert_bbox(outputs['loc'], self.anchors)    # (4, 5*25*25)
-        #print("pred_bbox:",pred_bbox.shape)
+        print(f"search_image: {search_image.shape}")
+        outputs = self.model.track(search_image)                         # (1, 2*anchor_num, 25, 25)
+        scores = self._convert_score(outputs['cls'])                     # (anchor_num*25*25, )
+        print(f"scores: {scores}")
+        pred_bboxes = self._convert_bbox(outputs['loc'], self.anchor_center)    # (4, anchor_num*25*25)
 
-        def change(r):
-            return np.maximum(r, 1. / r)
+        # print("pred_bboxes:",pred_bboxes.shape)
 
-        def sz(w, h):
-            pad = (w + h) * 0.5
-            return np.sqrt((w + pad) * (h + pad))
+        # def change(r):
+        #     return np.maximum(r, 1. / r)
 
-        # scale penalty
-        s_c = change(sz(pred_bbox[2, :], pred_bbox[3, :]) /
-                     (sz(self.size[0]*scale_z, self.size[1]*scale_z)))
+        # def sz(w, h):
+        #     pad = (w + h) * 0.5
+        #     return np.sqrt((w + pad) * (h + pad))
 
-        # aspect ratio penalty
-        r_c = change((self.size[0]/self.size[1]) /
-                     (pred_bbox[2, :]/pred_bbox[3, :]))
-        penalty = np.exp(-(r_c * s_c - 1) * cfg.TRACK.PENALTY_K)
-        pscore = penalty * scores
+        # # scale penalty
+        # s_c = change(sz(pred_bboxes[2, :], pred_bboxes[3, :]) /
+        #              (sz(self.size[0]*scale_z, self.size[1]*scale_z)))
+
+        # # aspect ratio penalty
+        # r_c = change((self.size[0]/self.size[1]) /
+        #              (pred_bboxes[2, :]/pred_bboxes[3, :]))
+        # penalty = np.exp(-(r_c * s_c - 1) * cfg.TRACK.PENALTY_K)
+        # pscore = penalty * scores
         
-        # window penalty
-        pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
-            self.window * cfg.TRACK.WINDOW_INFLUENCE
-        #best_idx = np.argmax(pscore)
-        
-        
-        #加nms，計算所有框
+        # # window penalty
+        # pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
+        #     self.window * cfg.TRACK.WINDOW_INFLUENCE
+        # #best_idx = np.argmax(pscore)
+            
+        # 加 NMS，計算所有框
+        # TODO: 改成 config
+        iou_threshold = 0.1
+        nms_bboxes = self.NMS(pred_bboxes, scores, iou_threshold)
+
         bboxes = []
         top_scores = []
-        iou_threshold = 0.1
-        results = self.nms(pred_bbox, scores, img, iou_threshold)
-
-        for i in range(len(results)):
-            bbox = pred_bbox[:, results[i]] / scale_z
-            lr = penalty[results[i]] * scores[results[i]] * cfg.TRACK.LR
-            score = scores[results[i]]
+        # TODO: 創一個新的 def block, ex: select_bbox
+        for i in range(len(nms_bboxes)):
+            # pred_bbox = pred_bboxes[:, nms_bboxes[i]] / scale_z
+            pred_bbox = pred_bboxes[:, nms_bboxes[i]]
+            # lr = penalty[nms_bboxes[i]] * scores[nms_bboxes[i]] * cfg.TRACK.LR
+            score = scores[nms_bboxes[i]]
             # print(f"score: {score}")
             # ipdb.set_trace()
             top_scores.append(score)
             if score >= 0.5:
-                cx = bbox[0] + self.center_pos[0]
-                cy = bbox[1] + self.center_pos[1]
-                #cx = bbox[0]*img.shape[1]
-                #cy = bbox[1]*img.shape[0]
+                cx = pred_bbox[0]   # + self.center_pos[0]
+                cy = pred_bbox[1]   # + self.center_pos[1]
+                #cx = pred_bbox[0]*img.shape[1]
+                #cy = pred_bbox[1]*img.shape[0]
                 #print(":",lr)
-                width = bbox[2]#self.size[0] * (1 - lr) + bbox[2] * lr
-                height = bbox[3]#self.size[1] * (1 - lr) + bbox[3] * lr
+                width = pred_bbox[2]    #self.size[0] * (1 - lr) + pred_bbox[2] * lr
+                height = pred_bbox[3]   #self.size[1] * (1 - lr) + pred_bbox[3] * lr
 
-                #width = bbox[2]#*img.shape[1]
-                #height = bbox[3]#*img.shape[0]
+                #width = pred_bbox[2]#*img.shape[1]
+                #height = pred_bbox[3]#*img.shape[0]
 
                 # clip boundary
-                cx, cy, width, height = self._bbox_clip(cx, cy, width,height, img.shape[:2])
-                
-                bbox = [cx - width / 2,
-                        cy - height / 2,
-                        width,
-                        height]
-                bboxes.append(bbox)
+                # print(f"cx: {cx}")
+                # print(f"cy: {cy}")
+                # print(f"width: {width}")
+                # print(f"height: {height}")
+                # ipdb.set_trace()
+                # cx, cy, width, height = self._bbox_clip(cx, cy, width, height, img.shape[:2])
+
+                pred_bbox = [cx - width / 2,
+                             cy - height / 2,
+                             width,
+                             height]
+                bboxes.append(pred_bbox)
             else:
                 continue
         '''
-        bbox = pred_bbox[:, best_idx] / scale_z
+        pred_bbox = pred_bboxes[:, best_idx] / scale_z
         lr = penalty[best_idx] * scores[best_idx] * cfg.TRACK.LR
 
-        cx = bbox[0] + self.center_pos[0]
-        cy = bbox[1] + self.center_pos[1]
+        cx = pred_bbox[0] + self.center_pos[0]
+        cy = pred_bbox[1] + self.center_pos[1]
 
-        # smooth bbox
-        width = self.size[0] * (1 - lr) + bbox[2] * lr
-        height = self.size[1] * (1 - lr) + bbox[3] * lr
+        # smooth pred_bbox
+        width = self.size[0] * (1 - lr) + pred_bbox[2] * lr
+        height = self.size[1] * (1 - lr) + pred_bbox[3] * lr
 
         # clip boundary
         cx, cy, width, height = self._bbox_clip(cx, cy, width,
@@ -292,13 +319,13 @@ class SiamRPNTracker(SiameseTracker):
         self.center_pos = np.array([cx, cy])
         self.size = np.array([width, height])
 
-        bbox = [cx - width / 2,
+        pred_bbox = [cx - width / 2,
                 cy - height / 2,
                 width,
                 height]
         top_scores = scores[best_idx]
         '''
         return {
-                'bboxes': bboxes,
-                'top_scores': top_scores
-               }
+            'bboxes': bboxes,
+            'top_scores': top_scores
+        }

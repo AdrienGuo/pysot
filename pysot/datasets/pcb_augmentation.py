@@ -1,13 +1,11 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-import numpy as np
 import cv2
-
-from pysot.utils.bbox import corner2center, Center, center2corner, Corner
+import numpy as np
 from pysot.datasets.check_image import draw_bbox
+from pysot.utils.bbox import Center, Corner, center2corner, corner2center
+
 
 class Augmentation:
     def __init__(self, type) -> None:

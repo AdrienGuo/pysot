@@ -16,7 +16,9 @@ results/
 pretrained_models/
 wandb/
 snapshot/
+save_models/
 testing_dataset/
+training_logs/
 tf/
 
 # Byte-compiled / optimized / DLL files

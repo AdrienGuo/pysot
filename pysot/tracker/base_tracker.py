@@ -86,10 +86,15 @@ class SiameseTracker(BaseTracker):
 
         if not np.array_equal(model_sz, original_sz):
             im_patch = cv2.resize(im_patch, (model_sz, model_sz))
-        im_patch = im_patch.transpose(2, 0, 1)
-        im_patch = im_patch[np.newaxis, :, :, :]
+        
+        # print(f"im_patch: {im_patch.shape}")
+        # cv2.imwrite("./image_check/trash/z_crop.jpg", im_patch)
+        # print("save z_crop")
+        
+        im_patch = im_patch.transpose(2, 0, 1)      # (w, h, channel) -> (channel, w, h)
+        im_patch = im_patch[np.newaxis, :, :, :]    # (1, channel, w, h)
         im_patch = im_patch.astype(np.float32)
         im_patch = torch.from_numpy(im_patch)
         if cfg.CUDA:
             im_patch = im_patch.cuda()
-        return im_patch
+        return im_patch     # (1, channel, w, h), dtype=tensor

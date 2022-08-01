@@ -72,7 +72,7 @@ def build_data_loader():
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.TRAIN.BATCH_SIZE,
                               collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
-                              num_workers=cfg.TRAIN.NUM_WORKERS,        # num_workers 先設為 0，因為 annotaiton 有問題(有些是空的)
+                              num_workers=cfg.TRAIN.NUM_WORKERS,
                               pin_memory=True,
                               sampler=train_sampler)
     return train_loader
@@ -176,15 +176,16 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
     start_epoch = cfg.TRAIN.START_EPOCH
     epoch = start_epoch
 
-    if not os.path.exists(cfg.TRAIN.SNAPSHOT_DIR) and \
+    if not os.path.exists(cfg.TRAIN.MODEL_DIR) and \
             get_rank() == 0:
-        os.makedirs(cfg.TRAIN.SNAPSHOT_DIR)
+        os.makedirs(cfg.TRAIN.MODEL_DIR)
 
     # logger.info("model\n{}".format(describe(model.module)))
     end = time.time()
 
     # 改成訓練多個 epoch (原版只訓練一個 epoch)
     for epoch in range(cfg.TRAIN.EPOCH):
+        epoch = epoch + 1
         logger.info('epoch: {}'.format(epoch))
         # train backbone, 但他只會在 epoch=10 的時候訓練一次就沒了??
         if cfg.BACKBONE.TRAIN_EPOCH == epoch:
@@ -212,7 +213,8 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             batch_cls_loss = outputs['cls_loss']
             batch_loc_loss = outputs['loc_loss']
             batch_total_loss = outputs['total_loss']
-            
+            print(f"cls_loss: {batch_cls_loss:<6.3f} | loc_loss: {batch_loc_loss:<6.3f} | total_loss: {batch_total_loss:<6.3f}")
+
             epoch_cls_loss += batch_cls_loss
             epoch_loc_loss += batch_loc_loss
             epoch_total_loss += batch_total_loss
@@ -255,7 +257,6 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         if rank == 0:
             # for k, v in batch_info.items():
             #     tb_writer.add_scalar(k, v, tb_idx)
-
             if (idx+1) % cfg.TRAIN.PRINT_FREQ == 0:
                 info = "Epoch: [{}][{}/{}] lr: {:.6f}\n".format(
                             epoch+1, (idx+1) % num_per_epoch,
@@ -272,12 +273,14 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                             average_meter.batch_time.avg,
                             cfg.TRAIN.EPOCH * num_per_epoch)
         
-        if get_rank() == 0:
+        if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
+            save_model_path = cfg.TRAIN.MODEL_DIR + '/model_e%d.pth' % (epoch)
             torch.save(
                     {'epoch': epoch,
                     'state_dict': model.module.state_dict(),
                     'optimizer': optimizer.state_dict()},
-                    cfg.TRAIN.SNAPSHOT_DIR+'/checkpoint_e%d.pth' % (epoch))
+                    save_model_path)
+            print(f"save model to: {save_model_path}")
         end = time.time()
 
 
@@ -349,11 +352,11 @@ if __name__ == '__main__':
         "lr": cfg.TRAIN.BASE_LR,
         "weight_decay": cfg.TRAIN.WEIGHT_DECAY
     }
-    # wandb.init(
-    #     project = "siamrpnpp",
-    #     entity = "adrien88",
-    #     name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-    #     config = constants
-    # )
+    wandb.init(
+        project="siamrpnpp",
+        entity="adrien88",
+        name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}-anchor5x4",
+        config=constants
+    )
     
     main()

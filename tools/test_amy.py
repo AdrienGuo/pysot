@@ -58,7 +58,7 @@ def main():
     model = ModelBuilder()
 
     # load model
-    model = load_pretrain(model, args.snapshot).cuda().eval()
+    model = load_pretrain(model, args.model).cuda().eval()
 
     # build tracker
     tracker = build_tracker(model)
@@ -68,7 +68,7 @@ def main():
     #                                        dataset_root=dataset_root,
     #                                        load_img=False)
 
-    model_name = args.snapshot.split('/')[-1].split('.')[0]
+    model_name = args.model.split('/')[-1].split('.')[0]
     model_name = "siamrpn_r50_l234_dwxcorr" #siamrpn_r50_l234_dwxcorr siammask_r50_l3
     print("????:",model_name)
     total_lost = 0
@@ -188,10 +188,10 @@ parser.add_argument('--dataset', type=str,
 #         help='config file')#siamrpn_r50_l234_dwxcorr siammask_r50_l3
 parser.add_argument('--config', default='./tf/pysot/experiments/siamrpn_r50_l234_dwxcorr/config.yaml', type=str,
         help='config file')#siamrpn_r50_l234_dwxcorr siammask_r50_l3
-# parser.add_argument('--snapshot', default='./experiments/siamrpn_r50_l234_dwxcorr/model_amy.pth', type=str,
-#         help='snapshot of models to eval')
-parser.add_argument('--snapshot', default='./tf/pysot/model/siamrpn_r50_l234_dwxcorr/model.pth', type=str,
-        help='snapshot of models to eval')
+# parser.add_argument('--model', default='./experiments/siamrpn_r50_l234_dwxcorr/model_amy.pth', type=str,
+#         help='model of models to eval')
+parser.add_argument('--model', default='./tf/pysot/model/siamrpn_r50_l234_dwxcorr/model.pth', type=str,
+        help='model of models to eval')
 parser.add_argument('--video', default='', type=str,
         help='eval one special video')
 parser.add_argument('--vis', action='store_true',

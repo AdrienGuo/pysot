@@ -1,32 +1,30 @@
 # Copyright (c) SenseTime. All Rights Reserved.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
 import json
 import logging
-import sys
 import os
+import sys
 
 import cv2
 import numpy as np
-from torch.utils.data import Dataset
-
-from pysot.utils.bbox import Corner, center2corner, Center
+from pysot.core.config import cfg
 from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
-from pysot.core.config import cfg
+from pysot.utils.bbox import Center, Corner, center2corner
+from torch.utils.data import Dataset
 
 logger = logging.getLogger("global")
 
-import pysot.datasets.check_image as check_image
 import ipdb
+import pysot.datasets.check_image as check_image
+from PIL import Image
 from pysot.datasets.crop_image import crop_like_SiamFC
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from PIL import Image
+
 DEBUG = cfg.DEBUG
 
 # setting opencv
@@ -57,8 +55,13 @@ class PCBDataset():
 
         # data augmentation
         self.template_aug = Augmentation(
-                                "template"
-                            )
+            "template"
+        )
+        
+        self.search_aug = Augmentation(
+            "search"
+        )
+        
         # self.search_aug = Augmentation(
         #         cfg.DATASET.SEARCH.SHIFT,
         #         cfg.DATASET.SEARCH.SCALE,
@@ -66,9 +69,6 @@ class PCBDataset():
         #         cfg.DATASET.SEARCH.FLIP,
         #         cfg.DATASET.SEARCH.COLOR
         #     )
-        self.search_aug = Augmentation(
-                                "search"
-                            )
 
     def _make_dataset(self, dir_path):
         """ 回傳資料
@@ -178,97 +178,97 @@ class PCBDataset():
             index = np.random.randint(low=0, high=len(self.images))
             return self.get_image_anno(index, self.search)
     
-    def _get_bbox(self, image, shape, type):
-        """
-        Args:
-            image: 實際影像
-            shape: bbox 的位置 ([cx, cy, w, h])，是比例值
-        """
-        # 是先高度再寬度 !!!
-        imh, imw = image.shape[:2]          # image 的 height, width
-        if type == "template":
-            cx, w = imw*shape[0], imw*shape[2]
-            cy, h = imh*shape[1], imh*shape[3]
-        elif type == "search":
-            cx, w = imw*shape[:, 0], imw*shape[:, 2]
-            cy, h = imh*shape[:, 1], imh*shape[:, 3]
-        bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
-        return bbox
+    # def _get_bbox(self, image, shape, type):
+    #     """
+    #     Args:
+    #         image: 實際影像
+    #         shape: bbox 的位置 ([cx, cy, w, h])，是比例值
+    #     """
+    #     # 是先高度再寬度 !!!
+    #     imh, imw = image.shape[:2]          # image 的 height, width
+    #     if type == "template":
+    #         cx, w = imw*shape[0], imw*shape[2]
+    #         cy, h = imh*shape[1], imh*shape[3]
+    #     elif type == "search":
+    #         cx, w = imw*shape[:, 0], imw*shape[:, 2]
+    #         cy, h = imh*shape[:, 1], imh*shape[:, 3]
+    #     bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
+    #     return bbox
     
-    def _get_bbox_amy(self, shape, typeName, direction, origin_size, temp):#原本cx,cy,w,h
-        bbox=[]
-        length = len(shape)
-        if typeName=="template":                    # 但亭儀的 typeName 完全沒有等於 template，應該是因為 template 也不需要 bbox
-            shape[0]=shape[0]*origin_size[0]        # shape 是比例，origin_size 是實際影像大小
-            shape[1]=shape[1]*origin_size[1]
-            shape[2]=shape[2]*origin_size[0]
-            shape[3]=shape[3]*origin_size[1]
-            # 這裡是要把物體移到中間
-            if direction=='x':
-                x1 = (shape[0]-shape[2]/2)+temp     # temp 這個取名我不懂...
-                y1 = (shape[1]-shape[3]/2)
-                x2 = (shape[0]+shape[2]/2)+temp
-                y2 = (shape[1]+shape[3]/2)
-            else:
-                x1 = (shape[0]-shape[2]/2)
-                y1 = (shape[1]-shape[3]/2)+temp
-                x2 = (shape[0]+shape[2]/2)
-                y2 = (shape[1]+shape[3]/2)+temp
-            bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
-        else:
+    # def _get_bbox_amy(self, shape, typeName, direction, origin_size, temp):#原本cx,cy,w,h
+    #     bbox=[]
+    #     length = len(shape)
+    #     if typeName=="template":                    # 但亭儀的 typeName 完全沒有等於 template，應該是因為 template 也不需要 bbox
+    #         shape[0]=shape[0]*origin_size[0]        # shape 是比例，origin_size 是實際影像大小
+    #         shape[1]=shape[1]*origin_size[1]
+    #         shape[2]=shape[2]*origin_size[0]
+    #         shape[3]=shape[3]*origin_size[1]
+    #         # 這裡是要把物體移到中間
+    #         if direction=='x':
+    #             x1 = (shape[0]-shape[2]/2)+temp     # temp 這個取名我不懂...
+    #             y1 = (shape[1]-shape[3]/2)
+    #             x2 = (shape[0]+shape[2]/2)+temp
+    #             y2 = (shape[1]+shape[3]/2)
+    #         else:
+    #             x1 = (shape[0]-shape[2]/2)
+    #             y1 = (shape[1]-shape[3]/2)+temp
+    #             x2 = (shape[0]+shape[2]/2)
+    #             y2 = (shape[1]+shape[3]/2)+temp
+    #         bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
+    #     else:
             
-            shape[:,0]=shape[:,0]*origin_size[0]
-            shape[:,1]=shape[:,1]*origin_size[1]
-            shape[:,2]=shape[:,2]*origin_size[0]
-            shape[:,3]=shape[:,3]*origin_size[1]
+    #         shape[:,0]=shape[:,0]*origin_size[0]
+    #         shape[:,1]=shape[:,1]*origin_size[1]
+    #         shape[:,2]=shape[:,2]*origin_size[0]
+    #         shape[:,3]=shape[:,3]*origin_size[1]
 
-            for i in range (len(shape)):
-                if direction=='x':
-                    x1 = (shape[i][0]-shape[i][2]/2)+temp
-                    y1 = (shape[i][1]-shape[i][3]/2)
-                    x2 = (shape[i][0]+shape[i][2]/2)+temp
-                    y2 = (shape[i][1]+shape[i][3]/2)
-                else:
-                    x1 = (shape[i][0]-shape[i][2]/2)
-                    y1 = (shape[i][1]-shape[i][3]/2)+temp
-                    x2 = (shape[i][0]+shape[i][2]/2)
-                    y2 = (shape[i][1]+shape[i][3]/2)+temp
-                bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
+    #         for i in range (len(shape)):
+    #             if direction=='x':
+    #                 x1 = (shape[i][0]-shape[i][2]/2)+temp
+    #                 y1 = (shape[i][1]-shape[i][3]/2)
+    #                 x2 = (shape[i][0]+shape[i][2]/2)+temp
+    #                 y2 = (shape[i][1]+shape[i][3]/2)
+    #             else:
+    #                 x1 = (shape[i][0]-shape[i][2]/2)
+    #                 y1 = (shape[i][1]-shape[i][3]/2)+temp
+    #                 x2 = (shape[i][0]+shape[i][2]/2)
+    #                 y2 = (shape[i][1]+shape[i][3]/2)+temp
+    #             bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
             
-        return bbox
+    #     return bbox
     
     
-    # 使用 image_crop 511
-    def _search_gt_box(self, image, shape, scale, check):
-        # print("box:",shape.shape)
-        imh, imw = image.shape[:2]
-        context_amount = 0.5
-        exemplar_size = cfg.TRAIN.EXEMPLAR_SIZE
-        bbox=[]
-        cx=shape[:,0]*imw
-        cy=shape[:,1]*imh
-        w=shape[:,2]*imw
-        h=shape[:,3]*imh
+    # # 使用 image_crop 511
+    # def _search_gt_box(self, image, shape, scale, check):
+    #     # print("box:",shape.shape)
+    #     imh, imw = image.shape[:2]
+    #     context_amount = 0.5
+    #     exemplar_size = cfg.TRAIN.EXEMPLAR_SIZE
+    #     bbox=[]
+    #     cx=shape[:,0]*imw
+    #     cy=shape[:,1]*imh
+    #     w=shape[:,2]*imw
+    #     h=shape[:,3]*imh
             
-        for i in range (len(shape)):
+    #     for i in range (len(shape)):
             
-            w1 ,h1 = w[i],h[i]
-            if check==0:
-                cx1 = cx[i]*scale[0]
-                cy1 = cy[i]*scale[1]
-            else:
-                cx1 = cx[i]*scale[0]+scale[2]
-                cy1 = cy[i]*scale[1]+scale[3]
+    #         w1 ,h1 = w[i],h[i]
+    #         if check==0:
+    #             cx1 = cx[i]*scale[0]
+    #             cy1 = cy[i]*scale[1]
+    #         else:
+    #             cx1 = cx[i]*scale[0]+scale[2]
+    #             cy1 = cy[i]*scale[1]+scale[3]
    
-            wc_z = w1 + context_amount * (w1+h1)
-            hc_z = h1 + context_amount * (w1+h1)
-            s_z = np.sqrt(wc_z * hc_z)
-            scale_z = exemplar_size / s_z
-            w1 = w1*scale_z
-            h1 = h1*scale_z
+    #         wc_z = w1 + context_amount * (w1+h1)
+    #         hc_z = h1 + context_amount * (w1+h1)
+    #         s_z = np.sqrt(wc_z * hc_z)
+    #         scale_z = exemplar_size / s_z
+    #         w1 = w1*scale_z
+    #         h1 = h1*scale_z
             
-            bbox.append(center2corner(Center(cx1, cy1, w1, h1)))
-        return bbox
+    #         bbox.append(center2corner(Center(cx1, cy1, w1, h1)))
+    #     return bbox
     
     def __len__(self):
         return len(self.images)
@@ -334,7 +334,7 @@ class PCBDataset():
 
         search_image, bbox = self.search_aug(search_image,
                                              search_bbox,
-                                             cfg.TRAIN.SEARCH_SIZE)        
+                                             cfg.TRAIN.SEARCH_SIZE)
 
         ####################################################################
         # Step 3.
@@ -439,19 +439,19 @@ class PCBDataset():
         # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
         
         cls, delta, delta_weight, overlap = self.anchor_target(
-                bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
+            bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
         
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
         
         return {
-                'template_image': template_image,
-                'search_image': search_image,
-                'label_cls': cls,
-                'label_loc': delta,
-                'label_loc_weight': delta_weight,
-                'bbox': np.array(bbox)
-               }
+            'template_image': template_image,
+            'search_image': search_image,
+            'label_cls': cls,
+            'label_loc': delta,
+            'label_loc_weight': delta_weight,
+            'bbox': np.array(bbox)
+        }
     
     def collate_fn(self, batch):
         """ 因為每個 template 會有 "不同數量" 的 targets，we need a collate function (to be passed to the DataLoader).
@@ -478,13 +478,13 @@ class PCBDataset():
             bbox.append(b['bbox'])
                 
         return {
-                'template_image': template_image,
-                'search_image': search_image,
-                'label_cls': cls,
-                'label_loc': delta,
-                'label_loc_weight': delta_weight,
-                'bbox': bbox
-               }
+            'template_image': template_image,
+            'search_image': search_image,
+            'label_cls': cls,
+            'label_loc': delta,
+            'label_loc_weight': delta_weight,
+            'bbox': bbox
+        }
     
 
 if __name__ == "__main__":

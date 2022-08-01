@@ -1,70 +1,63 @@
 # Copyright (c) SenseTime. All Rights Reserved.
 
-from __future__ import absolute_import, annotations
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, annotations, division, print_function,
+                        unicode_literals)
 
 import argparse
 import os
-from unittest import TestLoader
+import re
 
 import cv2
-import torch
-import numpy as np
-
-from PIL import Image , ImageDraw , ImageFont
-import numpy as np
+import ipdb
 import matplotlib.pyplot as plt
-import os
-import re
+import numpy as np
+import torch
 import torchvision.transforms.functional as F
-from torchvision import transforms
-
+from PIL import Image, ImageDraw, ImageFont
 from pysot.core.config import cfg
+from pysot.datasets.pcbdataset_test import PCBDatasetTest
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
 from pysot.utils.bbox import get_axis_aligned_bbox
 from pysot.utils.model_load import load_pretrain
 from toolkit.datasets import DatasetFactory
-from toolkit.utils.region import vot_overlap, vot_float2str
-
-import torchvision.transforms.functional as F
-
-from pysot.datasets.pcbdataset_test import PCBDatasetTest
+from toolkit.utils.region import vot_float2str, vot_overlap
 from torch.utils.data import DataLoader
+from torchvision import transforms
+
+# from unittest import TestLoader
+
+
+
+
+
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
-parser.add_argument('--dataset', type=str,
-    help='datasets')
+parser.add_argument('--model', default='', type=str, help='model of models to eval')
+parser.add_argument('--dataset', type=str, help='datasets')
 parser.add_argument('--annotation', type=str, help='annotation for testing')
 parser.add_argument('--save_dir', type=str, help='save to which directory')
-parser.add_argument('--config', default='', type=str,
-    help='config file')
-parser.add_argument('--snapshot', default='', type=str,
-    help='snapshot of models to eval')
-parser.add_argument('--video', default='', type=str,
-    help='eval one special video')
-parser.add_argument('--vis', action='store_true',
-    help='whether visualzie result')
+parser.add_argument('--config', default='', type=str, help='config file')
+# parser.add_argument('--video', default='', type=str, help='eval one special video')
+# parser.add_argument('--vis', action='store_true', help='whether visualzie result')
 args = parser.parse_args()
 
 torch.set_num_threads(1)
 
 
-def resize(image,size):
-    img_height = image.height
-    img_width = image.width
+# def resize(image,size):
+#     img_height = image.height
+#     img_width = image.width
     
-    if (img_width / img_height) > 1:
-        rate = size / img_width
-    else:
-        rate = size/ img_height
+#     if (img_width / img_height) > 1:
+#         rate = size / img_width
+#     else:
+#         rate = size/ img_height
        
-    width=int(img_width*rate)
-    height=int(img_height*rate)
+#     width=int(img_width*rate)
+#     height=int(img_height*rate)
    
-    return F.resize(image, (height,width))
+#     return F.resize(image, (height,width))
 
 
 def draw_result(sub_dir, annotation_path, idx):
@@ -212,12 +205,12 @@ def draw_result(sub_dir, annotation_path, idx):
 #     model = ModelBuilder()
 
 #     # load model
-#     model = load_pretrain(model, args.snapshot).cuda().eval()
+#     model = load_pretrain(model, args.model).cuda().eval()
 
 #     # build tracker
 #     tracker = build_tracker(model)
     
-#     model_name = args.snapshot.split('/')[-1].split('.')[0]
+#     model_name = args.model.split('/')[-1].split('.')[0]
 #     print(f"model_name: {model_name}")
     
 #     gt_bbox_x1y1x2y2 = [45.09031666815281, 123.62768352031708, 123.27953104674816, 376.83301651477814]
@@ -278,61 +271,85 @@ def draw_result(sub_dir, annotation_path, idx):
 
 def test(test_loader, tracker, inner_dir):
     for idx, data in enumerate(test_loader):
-        pred_bboxes = []
-        scores = []
+        image_path = [image_path for image_path in data['image_path']]
+        template_image = [torch.from_numpy(template_image).cuda() for template_image in data['template_image']]
+        search_image = [torch.from_numpy(search_image).cuda() for search_image in data['search_image']]
+        # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
+        template = [torch.from_numpy(template).cuda() for template in data['template']]
+        # search = [torch.from_numpy(search).cuda() for search in data['search']]
+
+        # image_path = torch.stack(image_path, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
+        template_image = torch.stack(template_image, dim=0)
+        search_image = torch.stack(search_image, dim=0)
+        # cls = torch.stack(cls, dim=0)
+        template = torch.stack(template, dim=0)
+        # search = torch.stack(search, dim=0)
         
         ####################################################################
         # Step 1.
         # get the test data
         ####################################################################
         # get the image
-        print(f"image_path: {data['image_path'][0]}")
-        image = cv2.imread(data['image_path'][0])
+        image_path = image_path[0]
+        print(f"load image from: {image_path}")
+        image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image_name = data['image_path'][0].split("/")[-1].split(".")[0]
+        image_name = image_path.split('/')[-1].split('.')[0]
+        
         # 用圖片檔名當作 sub_dir 的名稱
         sub_dir = os.path.join(inner_dir, image_name)
         if not os.path.isdir(sub_dir):
             os.makedirs(sub_dir)
             print(f"create dir: {sub_dir}")
+        
         # 在 sub_dir 裡面再創一個 search_dir，然後存 search image 進去
         search_dir = os.path.join(sub_dir, "search")
         if not os.path.isdir(search_dir):
             os.makedirs(search_dir)
             print(f"create dir: {search_dir}")
-            search_path = os.path.join(search_dir, image_name + ".jpg")
-            cv2.imwrite(search_path, image)
-            print(f"save search image to: {search_path}")
+        
+        search_image_tmp = search_image[0].cpu().numpy()
+        search_image_tmp = search_image_tmp.transpose(1, 2, 0)      # (3, 255, 255) -> (255, 255, 3)
+        search_path = os.path.join(search_dir, image_name + ".jpg")
+        cv2.imwrite(search_path, search_image_tmp)
+        print(f"save search image to: {search_path}")
 
-        template_x1y1x2y2 = data['template'].numpy()    # turn tensor to numpy
-        # print(f"template: {template_x1y1x2y2}")
-        template_x1y1x2y2 = template_x1y1x2y2.transpose(1, 0).squeeze()
+        template_x1y1x2y2 = template.cpu().numpy()    # turn tensor to numpy
+        template_x1y1x2y2 = template_x1y1x2y2.transpose(1, 0).squeeze()     # (4, )
+        
         # turn to [x1, y1, w, h], in order to match the input of .track()
-        gt_box = [
+        gt_box = [                      # (x1, y1, w, h)
             template_x1y1x2y2[0],
             template_x1y1x2y2[1],
             template_x1y1x2y2[2] - template_x1y1x2y2[0],
             template_x1y1x2y2[3] - template_x1y1x2y2[1]
         ]
         # print(f"gt_box: {gt_box}")
-        cx, cy, w, h = get_axis_aligned_bbox(np.array(gt_box))
+        gt_box = np.array(gt_box)
+        cx, cy, w, h = get_axis_aligned_bbox(gt_box)    # 一個超級多餘的步驟
         # print(f"{cx}, {cy}, {w}, {h}")
-        gt_bbox_xywh = [cx-w/2, cy-h/2, w, h]
+        gt_bbox_xywh = [cx-w/2, cy-h/2, w, h]   # (x1, y1, w, h)
         
         ####################################################################
         # Step 2.
         # start predict
         ####################################################################
-        # print(f"image: {type(image)}")
-        # print(f"gt_bbox_xywh: {type(gt_bbox_xywh[0])}")
-        z_crop = tracker.init(image, gt_bbox_xywh)
-        # print(f"z_crop: {z_crop}")
+        pred_bboxes = []
+        scores = []
+        
+        # 用 template image 將 tracker 初始化
+        # template_image = data['template_image']
+        # print(f"template image: {template_image.shape}")
+        # ipdb.set_trace()
+        z_crop = tracker.init(image, gt_bbox_xywh, template_image)
         pred_bbox = gt_bbox_xywh
         pred_bboxes.append(pred_bbox)
 
-        outputs = tracker.track(image)
-        scores.append(outputs['best_score'])
-        pred_bboxes.append(outputs['bbox'])
+        # 用 search image 進行 "track" 的動作
+        # search_image = data['search_image']
+        outputs = tracker.track(image, search_image)
+        scores.append(outputs['top_scores'])
+        pred_bboxes.append(outputs['bboxes'])
         # print(f"pred_bboxes: {pred_bboxes}")
 
         # save template result to ./results/images/{image_name}/template/{idx}.jpg
@@ -366,20 +383,23 @@ if __name__ == "__main__":
         os.makedirs(data_dir)
     
     test_dataset = PCBDatasetTest(args)
+    # test_loader = test_dataset.__getitem__(0)
     test_loader = DataLoader(test_dataset,
-                             batch_size=1)
-    print(len(test_loader.dataset))
+                             batch_size=1,
+                             collate_fn=test_dataset.collate_fn)
+    # test_loader = test_loader[:1]
+    # print(len(test_loader.dataset))
     
     cfg.merge_from_file(args.config)        # 不加 ModelBuilder() 會出問題ㄟ??
     
     # create model
     model = ModelBuilder()
     # load model
-    model = load_pretrain(model, args.snapshot).cuda().eval()
-    # model_name = args.snapshot.split("/")[2].split(".")[0]
+    model = load_pretrain(model, args.model).cuda().eval()
+    # model_name = args.model.split("/")[2].split(".")[0]
     # model_name = "amy_model"
-    model_name = "siamrpn_r50_l234_dwxcorr"
-    print(f"load model from: {args.snapshot}")
+    model_name = "my_model"
+    print(f"load model from: {args.model}")
 
     # build tracker
     tracker = build_tracker(model)

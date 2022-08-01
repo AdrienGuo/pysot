@@ -1,20 +1,17 @@
 # Copyright (c) SenseTime. All Rights Reserved.
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
+import cv2
+import ipdb
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from pysot.core.config import cfg
-from pysot.models.loss import select_cross_entropy_loss, weight_l1_loss
 from pysot.models.backbone import get_backbone
-from pysot.models.head import get_rpn_head, get_mask_head, get_refine_head
+from pysot.models.head import get_mask_head, get_refine_head, get_rpn_head
+from pysot.models.loss import select_cross_entropy_loss, weight_l1_loss
 from pysot.models.neck import get_neck
-
-import torch
 
 # debug mode
 DEBUG = cfg.DEBUG
@@ -55,26 +52,30 @@ class ModelBuilder(nn.Module):
 
     def track(self, x):
         xf = self.backbone(x)
+        
         if cfg.MASK.MASK:
             self.xf = xf[:-1]
             xf = xf[-1]
         if cfg.ADJUST.ADJUST:
             xf = self.neck(xf)
+
         cls, loc = self.rpn_head(self.zf, xf)
+        
         if cfg.MASK.MASK:
             mask, self.mask_corr_feature = self.mask_head(self.zf, xf)
+        
         return {
-                'cls': cls,
-                'loc': loc,
-                'mask': mask if cfg.MASK.MASK else None
-               }
+            'cls': cls,
+            'loc': loc,
+            'mask': mask if cfg.MASK.MASK else None
+        }
 
     def mask_refine(self, pos):
         return self.refine_head(self.xf, self.mask_corr_feature, pos)
 
     def log_softmax(self, cls):
         b, a2, h, w = cls.size()
-        cls = cls.view(b, 2, a2//2, h, w)
+        cls = cls.view(b, 2, a2 // 2, h, w)
         cls = cls.permute(0, 2, 3, 4, 1).contiguous()
         cls = F.log_softmax(cls, dim=4)
         return cls
@@ -94,6 +95,16 @@ class ModelBuilder(nn.Module):
         label_loc = torch.stack(label_loc, dim=0)
         label_loc_weight = torch.stack(label_loc_weight, dim=0)
         
+        # template_image = template.cpu().numpy()
+        # print(f"template: {template_image.shape}")
+        # cv2.imwrite("./image_check/trash/template.jpg", template_image[0].transpose(1, 2, 0))
+        # print("save template image")
+
+        # search_image = search.cpu().numpy()
+        # print(f"search: {search_image.shape}")
+        # cv2.imwrite("./image_check/trash/search.jpg", search_image[0].transpose(1, 2, 0))
+        # print("save search image")
+
         # get feature
         zf = self.backbone(template)
         xf = self.backbone(search)
@@ -104,20 +115,23 @@ class ModelBuilder(nn.Module):
         if cfg.ADJUST.ADJUST:
             zf = self.neck(zf)
             xf = self.neck(xf)
-        cls, loc = self.rpn_head(zf, xf)        # cls: [b, 10, 25, 25], loc: [b, 20, 25, 25]
+        
+        # cls: (b, 10, 25, 25), loc: (b, 20, 25, 25)
+        cls, loc = self.rpn_head(zf, xf)
 
         # get loss
-        cls = self.log_softmax(cls)
+        # print(f"cls: {cls.shape}")
+        cls = self.log_softmax(cls)     # (b, 5, 25, 25, 2)
+        # print(f"cls: {cls[0, 0, 0, 0, :]}")
+        # print(f"label_cls: {label_cls.shape}")
         cls_loss = select_cross_entropy_loss(cls, label_cls)
         loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
-
-        print(f"cls_loss: {cls_loss:<8.3f} | loc_loss: {loc_loss:<8.3f}")
 
         outputs = {}
         outputs['cls_loss'] = cls_loss
         outputs['loc_loss'] = loc_loss
-        outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss + \
-                                cfg.TRAIN.LOC_WEIGHT * loc_loss
+        outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss \
+                                + cfg.TRAIN.LOC_WEIGHT * loc_loss
 
         if cfg.MASK.MASK:
             # TODO

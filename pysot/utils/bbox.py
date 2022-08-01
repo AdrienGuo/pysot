@@ -1,14 +1,13 @@
 # Copyright (c) SenseTime. All Rights Reserved.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-from pysot.core.config import cfg
 from collections import namedtuple
 
+import ipdb
 import numpy as np
+from pysot.core.config import cfg
 
 DEBUG = cfg.DEBUG
 
@@ -55,6 +54,7 @@ def center2corner(center):
         y2 = y + h * 0.5
         return x1, y1, x2, y2
 
+
 def target_overlaps(anchor, target):
     """ caculate interection over union
         原本的 target 只有一個，但因為我們的 target 會有很多個，所以這裡需要改寫
@@ -63,23 +63,19 @@ def target_overlaps(anchor, target):
         anchor: (x1, y1, x2, y2), anchor
         target: (), target (can call it bbox?)
     Returns:
-        iou: (N, K) ndarray of overlap between anchor(N) and target(K)
+        iou: (N, K) ndarray of overlap between anchors(N) and targets(K)
     """
-    # 把 anchor 拉成 [4, N], N = 5*25*25
+    # 把 anchor 拉成 (4, N), N = 5*25*25
     anchor_flatten = np.reshape(anchor, (4, -1))
-    if DEBUG:
-        print(f"anchor_flatten shape: {anchor_flatten.shape}")
-    N = len(anchor_flatten[0])# number of anchor
-    K = len(target[0])# number of target
-    if DEBUG:
-        print(f"N: {N}, K: {K}")
+    N = len(anchor_flatten[0])  # anchor 的數量
+    K = len(target[0])          # target 的數量
     overlaps = np.zeros((N, K), dtype=np.float32)
 
     for k in range(K):
-        target_area = (target[2, k]-target[0, k]) * (target[3, k]-target[1, k])
-        assert target_area>0, f"target_area"
+        target_area = (target[2, k] - target[0, k]) * (target[3, k] - target[1, k])
+        assert target_area > 0, f"target_area: {target_area}"
         for n in range(N):
-            anchor_area = (anchor_flatten[2, n]-anchor_flatten[0, n]) * (anchor_flatten[3, n]-anchor_flatten[1, n])
+            anchor_area = (anchor_flatten[2, n] - anchor_flatten[0, n]) * (anchor_flatten[3, n] - anchor_flatten[1, n])
             intersection_x1 = np.maximum(anchor_flatten[0, n], target[0, k])
             intersection_y1 = np.maximum(anchor_flatten[1, n], target[1, k])
             intersection_x2 = np.minimum(anchor_flatten[2, n], target[2, k])
@@ -89,16 +85,17 @@ def target_overlaps(anchor, target):
             intersection_area = intersection_width * intersection_height
             
             ua = target_area + anchor_area - intersection_area
-            assert ua>0, f"wrong" + \
+            assert ua > 0, "wrong" + \
                 f"{target_area}, {anchor_area}, {intersection_area}"
             overlaps[n, k] = intersection_area / ua
-    
+
     # 確保 iou 都大於 0
-    assert overlaps[overlaps<0].size == 0, f"overlaps has area smaller than 0!!!"
+    assert overlaps[overlaps < 0].size == 0, "overlaps has area smaller than 0!!!"
     # 確保 iou 都小於 1
-    assert overlaps[overlaps>1].size == 0, f"overlaps has area bigger than 0!!!"
-    
+    assert overlaps[overlaps > 1].size == 0, "overlaps has area bigger than 1!!!"
+
     return overlaps
+
 
 def IoU(rect1, rect2):
     """ caculate interection over union
@@ -126,6 +123,7 @@ def IoU(rect1, rect2):
     iou = inter / (area + target_a - inter)
     return iou
 
+
 def target_delta(anchor, target, argmax):
     """ 算每個 anchor 跟對應 target 的 delta
         參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
@@ -138,11 +136,10 @@ def target_delta(anchor, target, argmax):
     delta = np.zeros((4, argmax.shape[0]), dtype=np.float32)
     anchor_flatten = np.reshape(anchor, (4, -1))
     acx, acy, aw, ah = anchor_flatten[0], anchor_flatten[1], anchor_flatten[2], anchor_flatten[3]
-    if DEBUG:
-        print(f"acx: {acx.shape}")
     tcx, tcy, tw, th = corner2center(target)
     for i in range(argmax.shape[0]):
         # Closest target (it might have IoU < 0.7)
+        # 這裡就一樣照算，因為之後會乘上 delta_weight 所以就算 IoU = 0 也沒關係
         index_closest = argmax[i]
         tcx_closest = tcx[index_closest]
         tcy_closest = tcy[index_closest]
@@ -157,6 +154,7 @@ def target_delta(anchor, target, argmax):
     delta = np.reshape(delta, anchor.shape)
 
     return delta
+
 
 def cxy_wh_2_rect(pos, sz):
     """ convert (cx, cy, w, h) to (x1, y1, w, h), 0-index
@@ -186,9 +184,11 @@ def rect1_2_cxy_wh(rect):
 
 def get_axis_aligned_bbox(region):
     """ convert region to (cx, cy, w, h) that represent by axis aligned box
+        這個步驟對我來說超級沒用，應該是為了處理當 nv == 8 的時候 (其實我也不確定，不想研究)
     """
-    nv = region.size
-    if nv == 8:
+    nv = region.shape[0]
+    if nv == 8:     # nv 怎麼可能等於 8 阿??
+        assert False, f"WHAT, nv == 8!?"
         cx = np.mean(region[0::2])
         cy = np.mean(region[1::2])
         x1 = min(region[0::2])

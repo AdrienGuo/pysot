@@ -98,7 +98,7 @@ class MultiRPN(RPN):
         self.weighted = weighted
         for i in range(len(in_channels)):
             self.add_module('rpn'+str(i+2),
-                    DepthwiseRPN(anchor_num, in_channels[i], in_channels[i]))
+                            DepthwiseRPN(anchor_num, in_channels[i], in_channels[i]))
         if self.weighted:
             self.cls_weight = nn.Parameter(torch.ones(len(in_channels)))
             self.loc_weight = nn.Parameter(torch.ones(len(in_channels)))
