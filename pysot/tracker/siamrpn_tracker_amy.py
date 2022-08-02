@@ -26,10 +26,10 @@ class SiamRPNTracker(SiameseTracker):
         self.score_size = (cfg.TRACK.INSTANCE_SIZE - cfg.TRACK.EXEMPLAR_SIZE) // \
             cfg.ANCHOR.STRIDE + 1 + cfg.TRACK.BASE_SIZE
         #print("self.score_size:",self.score_size)
-        self.anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES) #5 = 5 * 1
-        #print("anchor:",self.anchor_num) 
-        #print("anchor:",len(cfg.ANCHOR.RATIOS))
-        #print("anchor:",len(cfg.ANCHOR.SCALES))
+        
+        # self.anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES) #5 = 5 * 1
+        self.anchor_num = cfg.ANCHOR.ANCHOR_NUM
+
         hanning = np.hanning(self.score_size)
         window = np.outer(hanning, hanning)
         self.window = np.tile(window.flatten(), self.anchor_num)
@@ -42,8 +42,7 @@ class SiamRPNTracker(SiameseTracker):
                           cfg.ANCHOR.RATIOS,
                           cfg.ANCHOR.SCALES)
         anchor = anchors.anchors #(5,4)
-        
-        
+
         x1, y1, x2, y2 = anchor[:, 0], anchor[:, 1], anchor[:, 2], anchor[:, 3]
         anchor = np.stack([(x1+x2)*0.5, (y1+y2)*0.5, x2-x1, y2-y1], 1)
         total_stride = anchors.stride

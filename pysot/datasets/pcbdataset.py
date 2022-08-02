@@ -281,6 +281,7 @@ class PCBDataset():
 
         # get one dataset
         # 這個 if 還需要修改成 template 和 search "一定" 不會互相對應到同一張圖片的
+        neg = False
         if neg:
             template = self.get_neg_pair("template", index)
             search = self.get_neg_pair("search")

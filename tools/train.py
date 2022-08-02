@@ -185,6 +185,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
 
     # 改成訓練多個 epoch (原版只訓練一個 epoch)
     for epoch in range(cfg.TRAIN.EPOCH):
+        epoch = epoch + 1
         logger.info('epoch: {}'.format(epoch))
         # train backbone, 但他只會在 epoch=10 的時候訓練一次就沒了??
         if cfg.BACKBONE.TRAIN_EPOCH == epoch:
@@ -258,7 +259,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
 
             if (idx+1) % cfg.TRAIN.PRINT_FREQ == 0:
                 info = "Epoch: [{}][{}/{}] lr: {:.6f}\n".format(
-                            epoch+1, (idx+1) % num_per_epoch,
+                            epoch, (idx+1) % num_per_epoch,
                             num_per_epoch, cur_lr)
                 for cc, (k, v) in enumerate(batch_info.items()):
                     if cc % 2 == 0:
@@ -272,12 +273,13 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                             average_meter.batch_time.avg,
                             cfg.TRAIN.EPOCH * num_per_epoch)
         
-        if get_rank() == 0 and epoch % cfg.TRAIN_SAVE_FREQ == 0:
+        if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
             torch.save(
                     {'epoch': epoch,
                     'state_dict': model.module.state_dict(),
                     'optimizer': optimizer.state_dict()},
                     cfg.TRAIN.SNAPSHOT_DIR + "/kmeans-11" + '/checkpoint_e%d.pth' % (epoch))
+            print(f"save model to: {cfg.TRAIN.SNAPSHOT_DIR}/kmeans-11/checkpoint_e{epoch}.pth")
         end = time.time()
 
 
@@ -343,17 +345,17 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
     
-    # constants = {
-    #     "epochs": cfg.TRAIN.EPOCH,
-    #     "batch_size": cfg.TRAIN.BATCH_SIZE,
-    #     "lr": cfg.TRAIN.BASE_LR,
-    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    # }
-    # wandb.init(
-    #     project = "siamrpnpp",
-    #     entity = "adrien88",
-    #     name = f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-    #     config = constants
-    # )
+    constants = {
+        "epochs": cfg.TRAIN.EPOCH,
+        "batch_size": cfg.TRAIN.BATCH_SIZE,
+        "lr": cfg.TRAIN.BASE_LR,
+        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    }
+    wandb.init(
+        project="siamrpnpp",
+        entity="adrien88",
+        name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
+        config=constants
+    )
     
     main()
