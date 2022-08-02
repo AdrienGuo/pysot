@@ -452,7 +452,7 @@ class PCBDataset():
             'label_loc_weight': delta_weight,
             'bbox': np.array(bbox)
         }
-    
+
     def collate_fn(self, batch):
         """ 因為每個 template 會有 "不同數量" 的 targets，we need a collate function (to be passed to the DataLoader).
             不然會跳出 RuntimeError: stack expects each tensor to be equal size, but got [4, 1] at entry 0 and [4, 2] at entry 2

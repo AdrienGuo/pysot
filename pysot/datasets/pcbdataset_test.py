@@ -285,14 +285,16 @@ class PCBDatasetTest():
 
         template_image = cv2.imread(template_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search_path)
+        print(f"template: {template_image.shape}")
+        print(f"search_image: {search_image.shape}")
 
-        template_image, _ = self.template_aug(template_image,
-                                              template_box,
-                                              cfg.TRAIN.EXEMPLAR_SIZE)
+        # template_image, _ = self.template_aug(template_image,
+        #                                       template_box,
+        #                                       cfg.TRAIN.EXEMPLAR_SIZE)
 
-        search_image, bbox = self.search_aug(search_image,
-                                             search_bbox,
-                                             cfg.TRAIN.SEARCH_SIZE)
+        # search_image, bbox = self.search_aug(search_image,
+        #                                      search_bbox,
+        #                                      cfg.TRAIN.SEARCH_SIZE)
 
         image_h, image_w = search_image.shape[:2]
         template_box = center2corner(template[1])
@@ -303,7 +305,6 @@ class PCBDatasetTest():
         # print(f"image path: {template[0]}")
         # print(f"[{template_x1, template_y1, template_x2, template_y2}]")
         # print(f"search: \n{search[1]}")
-
 
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)

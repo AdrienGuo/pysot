@@ -38,7 +38,6 @@ class Anchors:
         for r in self.ratios:
             ws = int(math.sqrt(size * 1. / r))
             hs = int(ws * r)
-
             for s in self.scales:
                 w = ws * s
                 h = hs * s
@@ -59,7 +58,7 @@ class Anchors:
         self.image_center = im_c
         self.size = size
 
-        # 到底為甚麼要加這個??? 害我要整個從新 train
+        # 到底為甚麼要加這個??? 害我要整個重新 train
         a0x = im_c - size // 2 * self.stride
         ori = np.array([a0x] * 4, dtype=np.float32)
         zero_anchors = self.anchors + ori

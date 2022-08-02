@@ -25,7 +25,7 @@ __C.TRAIN = CN()
 
 # Anchor Target
 # Positive anchor threshold
-__C.TRAIN.THR_HIGH = 0.5
+__C.TRAIN.THR_HIGH = 0.6
 # Negative anchor threshold
 __C.TRAIN.THR_LOW = 0.3
 
@@ -50,7 +50,7 @@ __C.TRAIN.PRETRAINED = ''
 # __C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
-__C.TRAIN.MODEL_DIR = './save_models/my_model'
+__C.TRAIN.MODEL_DIR = './save_models/siamrpn_r50_l234_dwxcorr'
 __C.TRAIN.START_EPOCH = 0
 __C.TRAIN.EPOCH = 20
 __C.TRAIN.BATCH_SIZE = 32
@@ -243,7 +243,7 @@ __C.ANCHOR.STRIDE = 8
 # Anchor ratios
 __C.ANCHOR.RATIOS = [0.33, 0.5, 1, 2, 3]
 # Anchor scales
-__C.ANCHOR.SCALES = [4, 8, 16, 32]
+__C.ANCHOR.SCALES = [8]
 # Anchor number
 __C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
 

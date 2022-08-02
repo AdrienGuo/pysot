@@ -272,7 +272,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                 print_speed(idx+1+start_epoch*num_per_epoch,
                             average_meter.batch_time.avg,
                             cfg.TRAIN.EPOCH * num_per_epoch)
-        
+
         if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
             save_model_path = cfg.TRAIN.MODEL_DIR + '/model_e%d.pth' % (epoch)
             torch.save(
@@ -355,7 +355,7 @@ if __name__ == '__main__':
     wandb.init(
         project="siamrpnpp",
         entity="adrien88",
-        name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}-anchor5x4",
+        name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
         config=constants
     )
     

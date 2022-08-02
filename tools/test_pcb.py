@@ -28,10 +28,6 @@ from torchvision import transforms
 # from unittest import TestLoader
 
 
-
-
-
-
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
 parser.add_argument('--dataset', type=str, help='datasets')
@@ -341,13 +337,13 @@ def test(test_loader, tracker, inner_dir):
         # template_image = data['template_image']
         # print(f"template image: {template_image.shape}")
         # ipdb.set_trace()
-        z_crop = tracker.init(image, gt_bbox_xywh, template_image)
+        z_crop = tracker.init(image, gt_bbox_xywh)
         pred_bbox = gt_bbox_xywh
         pred_bboxes.append(pred_bbox)
 
         # 用 search image 進行 "track" 的動作
         # search_image = data['search_image']
-        outputs = tracker.track(image, search_image)
+        outputs = tracker.track(image)
         scores.append(outputs['top_scores'])
         pred_bboxes.append(outputs['bboxes'])
         # print(f"pred_bboxes: {pred_bboxes}")
@@ -396,8 +392,9 @@ if __name__ == "__main__":
     model = ModelBuilder()
     # load model
     model = load_pretrain(model, args.model).cuda().eval()
+
     # model_name = args.model.split("/")[2].split(".")[0]
-    # model_name = "amy_model"
+    # model_name = "siamrpn_r50_l234_dwxcorr"
     model_name = "my_model"
     print(f"load model from: {args.model}")
 
