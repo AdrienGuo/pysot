@@ -46,7 +46,7 @@ class Anchors:
                                [198.60379193, 186.63266023]])
         self.anchors = np.array([-(anchors_wh[:, 0] * 0.5), -(anchors_wh[:, 1] * 0.5),
                                  (anchors_wh[:, 0] * 0.5), (anchors_wh[:, 1] * 0.5)]).transpose(1, 0)
-        print(f"anchors: {self.anchors}")
+        print(f"anchors:\n {self.anchors}")
 
         # size = self.stride * self.stride
         # count = 0

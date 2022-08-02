@@ -88,7 +88,6 @@ class AnchorTarget:
             anchor_box[2], anchor_box[3]
         cx, cy, w, h = anchor_center[0], anchor_center[1], \
             anchor_center[2], anchor_center[3]
-
         
         # 把 target 疊起來變成 [4, K]
         target_stack = np.stack((target[0], target[1], target[2], target[3]))
@@ -105,11 +104,17 @@ class AnchorTarget:
 
         # 找 anchor 要對應到哪個 target
         # 參考 https://github.com/rbgirshick/py-faster-rcnn/blob/781a917b378dbfdedb45b6a56189a31982da1b43/lib/rpn/anchor_target_layer.py#L130
+        # fg label: for each gt, anchor with highest overlap
+        gt_argmax_overlaps = overlaps.argmax(axis=0)
+        gt_max_overlaps = overlaps[gt_argmax_overlaps,
+                                   np.arange(overlaps.shape[1])]
+        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
+        # fg label: for each anchor, gt with the highest overlap
         argmax_overlaps = overlaps.argmax(axis=1)
         max_overlaps = overlaps[np.arange(overlaps.shape[0]), argmax_overlaps]
+
+        # 我確定這個 reshape 不會影響排列順序
         overlap = np.reshape(max_overlaps, anchor_box.shape[-3:])
-        if DEBUG:
-            print(f"overlap shape: {overlap.shape}")
 
         # 遇到多個 target 的問題了
         # 參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
@@ -130,9 +135,13 @@ class AnchorTarget:
         pos, pos_num = select(pos, cfg.TRAIN.POS_NUM)           # 最多只會選 16 個 anchors 出來
         neg, neg_num = select(neg, cfg.TRAIN.TOTAL_NUM - cfg.TRAIN.POS_NUM)
 
-        cls[pos] = 1
-        delta_weight[pos] = 1. / (pos_num + 1e-6)       # anchor 的數量越少, weight 越高 (why)
+        cls = np.reshape(cls, (-1))
+        cls[gt_argmax_overlaps] = 1     # 將與 gt 有最大 IoU 的直接判為 fg
+        cls = np.reshape(cls, (anchor_num, size, size))
+        cls[pos] = 1        # 將所有的 anchor 與 gt 的 IoU 有大於 threshold 的判為 fg
+        delta_weight[pos] = 1. / (pos_num + 1e-6)       # 正樣本的 anchor 數量越少, weight 越高 (why)
         # 這個 delta_weight 讓我找好久... 07/14/2022
 
         cls[neg] = 0
+
         return cls, delta, delta_weight, overlap
