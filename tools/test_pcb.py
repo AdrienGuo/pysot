@@ -368,8 +368,9 @@ if __name__ == "__main__":
     model = ModelBuilder()
     # load model
     model = load_pretrain(model, args.snapshot).cuda().eval()
+    
     # model_name = args.snapshot.split("/")[2].split(".")[0]
-    # model_name = "amy_model"
+    # model_name = "siamrpn_r50_l234_dwxcorr"
     model_name = "my_model"
     print(f"load model from: {args.snapshot}")
 

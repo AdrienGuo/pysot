@@ -23,6 +23,7 @@ class Anchors:
 
         # self.anchor_num = len(self.scales) * len(self.ratios)
         self.anchor_num = cfg.ANCHOR.ANCHOR_NUM
+        print(f"cfg: {self.anchor_num}")
 
         self.anchors = None
 
@@ -46,7 +47,6 @@ class Anchors:
                                [198.60379193, 186.63266023]])
         self.anchors = np.array([-(anchors_wh[:, 0] * 0.5), -(anchors_wh[:, 1] * 0.5),
                                  (anchors_wh[:, 0] * 0.5), (anchors_wh[:, 1] * 0.5)]).transpose(1, 0)
-        print(f"anchors:\n {self.anchors}")
 
         # size = self.stride * self.stride
         # count = 0
@@ -59,6 +59,8 @@ class Anchors:
         #         h = hs * s
         #         self.anchors[count][:] = [-w*0.5, -h*0.5, w*0.5, h*0.5][:]
         #         count += 1
+
+        print(f"anchors:\n {self.anchors}")
 
     def generate_all_anchors(self, im_c, size):
         """

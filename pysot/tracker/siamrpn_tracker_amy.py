@@ -25,11 +25,7 @@ class SiamRPNTracker(SiameseTracker):
         super(SiamRPNTracker, self).__init__()
         self.score_size = (cfg.TRACK.INSTANCE_SIZE - cfg.TRACK.EXEMPLAR_SIZE) // \
             cfg.ANCHOR.STRIDE + 1 + cfg.TRACK.BASE_SIZE
-        #print("self.score_size:",self.score_size)
-        self.anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES) #5 = 5 * 1
-        #print("anchor:",self.anchor_num) 
-        #print("anchor:",len(cfg.ANCHOR.RATIOS))
-        #print("anchor:",len(cfg.ANCHOR.SCALES))
+        self.anchor_num = cfg.ANCHOR.ANCHOR_NUM
         hanning = np.hanning(self.score_size)
         window = np.outer(hanning, hanning)
         self.window = np.tile(window.flatten(), self.anchor_num)
@@ -41,21 +37,28 @@ class SiamRPNTracker(SiameseTracker):
         anchors = Anchors(cfg.ANCHOR.STRIDE,
                           cfg.ANCHOR.RATIOS,
                           cfg.ANCHOR.SCALES)
-        anchor = anchors.anchors #(5,4)
-
-        x1, y1, x2, y2 = anchor[:, 0], anchor[:, 1], anchor[:, 2], anchor[:, 3]
-        anchor = np.stack([(x1+x2)*0.5, (y1+y2)*0.5, x2-x1, y2-y1], 1)
-        total_stride = anchors.stride
-        anchor_num = anchor.shape[0]
-        anchor = np.tile(anchor, score_size * score_size).reshape((-1, 4))
-        #print("anchor:",anchor.shape)
-        ori = - (score_size // 2) * total_stride
-        xx, yy = np.meshgrid([ori + total_stride * dx for dx in range(score_size)],
-                             [ori + total_stride * dy for dy in range(score_size)])
-        xx, yy = np.tile(xx.flatten(), (anchor_num, 1)).flatten(), \
-            np.tile(yy.flatten(), (anchor_num, 1)).flatten()
-        anchor[:, 0], anchor[:, 1] = xx.astype(np.float32), yy.astype(np.float32)
         
+        anchors.generate_all_anchors(im_c=255 // 2, size=score_size)
+        anchor = anchors.all_anchors[1]
+        anchor = np.reshape(anchor, (4, -1))
+        anchor = np.transpose(anchor, (1, 0))
+
+        # anchor = anchors.anchors
+
+        # x1, y1, x2, y2 = anchor[:, 0], anchor[:, 1], anchor[:, 2], anchor[:, 3]
+        # anchor = np.stack([(x1+x2)*0.5, (y1+y2)*0.5, x2-x1, y2-y1], 1)
+        # total_stride = anchors.stride
+        # anchor_num = anchor.shape[0]
+        # anchor = np.tile(anchor, score_size * score_size).reshape((-1, 4))
+        # ori = - (score_size // 2) * total_stride
+        # xx, yy = np.meshgrid([ori + total_stride * dx for dx in range(score_size)],
+        #                      [ori + total_stride * dy for dy in range(score_size)])
+        # xx, yy = np.tile(xx.flatten(), (anchor_num, 1)).flatten(), \
+        #     np.tile(yy.flatten(), (anchor_num, 1)).flatten()
+        # anchor[:, 0], anchor[:, 1] = xx.astype(np.float32), yy.astype(np.float32)
+
+        print(f"anchor: {anchor.shape}")
+
         return anchor
 
     def _convert_bbox(self, delta, anchor):
@@ -236,11 +239,11 @@ class SiamRPNTracker(SiameseTracker):
         iou_threshold = 0.1
         result=self.nms(pred_bbox,score,img,iou_threshold)
         for i in range(len(result)):
-           
+
             bbox = pred_bbox[:, result[i]] / scale_z
             lr = penalty[result[i]] * score[result[i]] * cfg.TRACK.LR
             scores = score[result[i]]
-            if scores >=0.5:
+            if scores >=0.9:
                 best_score.append(scores)
                 cx = bbox[0] + self.center_pos[0]
                 cy = bbox[1] + self.center_pos[1]
