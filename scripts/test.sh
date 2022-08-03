@@ -2,7 +2,7 @@
 
 # For different model (config 也要改)
 # --snapshot ./snapshot/checkpoint_e20.pth
-# --snapshot ./snapshot/kmeans-11-high0.6/checkpoint_e18.pth
+# --snapshot ./snapshot/kmeans-11-high0.5/checkpoint_e18.pth
 # --snapshot ./experiments/siamrpn_r50_l234_dwxcorr/model.pth
 # --snapshot ./experiments/siamrpn_r50_l234_dwxcorr_otb/model.pth
 # --snapshot ./experiments/siammask_r50_l3/model.pth
@@ -16,7 +16,7 @@
 # --dataset ./testing_dataset/PCB/val/
 
 python ./tools/test_pcb.py \
-    --snapshot ./snapshot/kmeans-11-high0.6/checkpoint_e18.pth \
+    --snapshot ./snapshot/kmeans-11-high0.5/checkpoint_e18.pth \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
 	--dataset ./testing_dataset/PCB/val/ \
 	--annotation ./testing_dataset/PCB/val/ \
