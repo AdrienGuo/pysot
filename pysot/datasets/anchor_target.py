@@ -36,7 +36,8 @@ class AnchorTarget:
             delta_weight: 
             overlap: 
         """
-        anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
+        # anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
+        anchor_num = cfg.ANCHOR.ANCHOR_NUM
 
         # -1 ignore 0 negative 1 positive
         cls = -1 * np.ones((anchor_num, size, size), dtype=np.int64)
@@ -137,14 +138,9 @@ class AnchorTarget:
         # fg label: for each anchor, gt with the highest overlap
         argmax_overlaps = overlaps.argmax(axis=1)
         max_overlaps = overlaps[np.arange(overlaps.shape[0]), argmax_overlaps]
-        
+
         # 我確定這個 reshape 不會影響排列順序
         overlap = np.reshape(max_overlaps, anchor_box.shape[-3:])
-        # print(f"overlap2: {overlap.shape}")
-        # overlap = np.reshape(max_overlaps, (-1))
-        # print(f"overlap shape: {overlap.shape}")
-        # res = np.equal(max_overlaps, overlap)
-        # print(f"where: {np.where(res == False)}")
 
         # 遇到多個 target 的問題了
         # 參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
@@ -170,8 +166,9 @@ class AnchorTarget:
         cls[gt_argmax_overlaps] = 1     # 將與 gt 有最大 IoU 的直接判為 fg
         cls = np.reshape(cls, (anchor_num, size, size))
         cls[pos] = 1        # 將所有的 anchor 與 gt 的 IoU 有大於 threshold 的判為 fg
-        delta_weight[pos] = 1. / (pos_num + 1e-6)       # anchor 的數量越少, weight 越高 (why)
+        delta_weight[pos] = 1. / (pos_num + 1e-6)       # 正樣本的 anchor 數量越少, weight 越高 (why)
         # 這個 delta_weight 讓我找好久... 07/14/2022
 
         cls[neg] = 0
+
         return cls, delta, delta_weight, overlap

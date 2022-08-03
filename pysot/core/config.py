@@ -58,7 +58,7 @@ __C.TRAIN.SAVE_MODEL_FREQ = 5
 
 # edit
 # __C.TRAIN.NUM_WORKERS = 1
-__C.TRAIN.NUM_WORKERS = 10
+__C.TRAIN.NUM_WORKERS = 8
 
 __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.WEIGHT_DECAY = 0.0001
@@ -68,6 +68,7 @@ __C.TRAIN.LOC_WEIGHT = 1.2
 __C.TRAIN.MASK_WEIGHT = 1
 
 __C.TRAIN.PRINT_FREQ = 20
+__C.TRAIN.SAVE_MODEL_FREQ = 2
 
 __C.TRAIN.LOG_GRADS = False
 
@@ -245,7 +246,8 @@ __C.ANCHOR.RATIOS = [0.33, 0.5, 1, 2, 3]
 # Anchor scales
 __C.ANCHOR.SCALES = [8]
 # Anchor number
-__C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
+# __C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
+__C.ANCHOR.ANCHOR_NUM = 11
 
 
 # ------------------------------------------------------------------------ #

@@ -259,7 +259,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             #     tb_writer.add_scalar(k, v, tb_idx)
             if (idx+1) % cfg.TRAIN.PRINT_FREQ == 0:
                 info = "Epoch: [{}][{}/{}] lr: {:.6f}\n".format(
-                            epoch+1, (idx+1) % num_per_epoch,
+                            epoch, (idx+1) % num_per_epoch,
                             num_per_epoch, cur_lr)
                 for cc, (k, v) in enumerate(batch_info.items()):
                     if cc % 2 == 0:
