@@ -1,5 +1,4 @@
 # Copyright (c) SenseTime. All Rights Reserved.
-
 from __future__ import (absolute_import, annotations, division, print_function,
                         unicode_literals)
 
@@ -24,9 +23,6 @@ from toolkit.datasets import DatasetFactory
 from toolkit.utils.region import vot_float2str, vot_overlap
 from torch.utils.data import DataLoader
 from torchvision import transforms
-
-# from unittest import TestLoader
-
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
@@ -84,7 +80,7 @@ def draw_result(sub_dir, annotation_path, idx):
     print(f"lines: {lines}")
     if lines[0] == '\n':
         print(f"there is no predict item in this image")
-        print(f"=" * 50)
+        print(f"=" * 20)
         return
 
     for line in lines:
@@ -134,14 +130,14 @@ def draw_result(sub_dir, annotation_path, idx):
 
         del draw
 
-        # save the result image
-        save_dir = os.path.join(sub_dir, "predict")
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        save_path = os.path.join(save_dir, str(idx) + ".jpg")
-        im.save(save_path)
-        print(f"save predict image to: {save_path}")
-        print(f"=" * 50)
+    # save the result image
+    save_dir = os.path.join(sub_dir, "predict")
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_path = os.path.join(save_dir, str(idx) + ".jpg")
+    im.save(save_path)
+    print(f"save predict image to: {save_path}")
+    print("=" * 20)
 
     # for i in range (len(imgs)):
     #     if not Image.open(imgs[i]):

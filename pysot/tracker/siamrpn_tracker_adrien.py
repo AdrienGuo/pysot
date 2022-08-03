@@ -57,7 +57,7 @@ class SiamRPNTracker(SiameseTracker):
                           cfg.ANCHOR.RATIOS,
                           cfg.ANCHOR.SCALES)
         anchor = anchors.anchors    # (5, 4)
-        
+
         x1, y1, x2, y2 = anchor[:, 0], anchor[:, 1], anchor[:, 2], anchor[:, 3]
         anchor = np.stack(((x1+x2)*0.5, (y1+y2)*0.5, x2-x1, y2-y1), axis=1)      # (cx, cy, w, h) = (5, 4)
         total_stride = anchors.stride

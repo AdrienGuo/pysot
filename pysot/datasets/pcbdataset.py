@@ -327,7 +327,7 @@ class PCBDataset():
 
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
-        
+
         template_image, _ = self.template_aug(template_image,
                                               template_box,
                                               cfg.TRAIN.EXEMPLAR_SIZE)
@@ -440,10 +440,10 @@ class PCBDataset():
         
         cls, delta, delta_weight, overlap = self.anchor_target(
             bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
-        
+
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
-        
+
         return {
             'template_image': template_image,
             'search_image': search_image,

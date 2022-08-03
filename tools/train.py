@@ -259,7 +259,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             #     tb_writer.add_scalar(k, v, tb_idx)
             if (idx+1) % cfg.TRAIN.PRINT_FREQ == 0:
                 info = "Epoch: [{}][{}/{}] lr: {:.6f}\n".format(
-                            epoch+1, (idx+1) % num_per_epoch,
+                            epoch, (idx+1) % num_per_epoch,
                             num_per_epoch, cur_lr)
                 for cc, (k, v) in enumerate(batch_info.items()):
                     if cc % 2 == 0:
@@ -346,17 +346,17 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
     
-    constants = {
-        "epochs": cfg.TRAIN.EPOCH,
-        "batch_size": cfg.TRAIN.BATCH_SIZE,
-        "lr": cfg.TRAIN.BASE_LR,
-        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    }
-    wandb.init(
-        project="siamrpnpp",
-        entity="adrien88",
-        name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-        config=constants
-    )
+    # constants = {
+    #     "epochs": cfg.TRAIN.EPOCH,
+    #     "batch_size": cfg.TRAIN.BATCH_SIZE,
+    #     "lr": cfg.TRAIN.BASE_LR,
+    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    # }
+    # wandb.init(
+    #     project="siamrpnpp",
+    #     entity="adrien88",
+    #     name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
+    #     config=constants
+    # )
     
     main()

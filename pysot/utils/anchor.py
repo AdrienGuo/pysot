@@ -1,5 +1,4 @@
 # Copyright (c) SenseTime. All Rights Reserved.
-
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
@@ -7,6 +6,7 @@ import math
 
 import ipdb
 import numpy as np
+from pysot.core.config import cfg
 from pysot.utils.bbox import center2corner, corner2center
 
 
@@ -21,7 +21,9 @@ class Anchors:
         self.image_center = image_center
         self.size = size
 
-        self.anchor_num = len(self.scales) * len(self.ratios)
+        # self.anchor_num = len(self.scales) * len(self.ratios)
+        self.anchor_num = cfg.ANCHOR.ANCHOR_NUM
+        print(f"cfg: {self.anchor_num}")
 
         self.anchors = None
 
@@ -33,19 +35,34 @@ class Anchors:
         generate self.anchors: (5, 4)
         """
         self.anchors = np.zeros((self.anchor_num, 4), dtype=np.float32)
+
+        # anchors_wh = np.array([[155.2646798 , 105.87584095],
+        #                        [ 16.47197038,   9.99376587],
+        #                        [ 94.69877538, 174.15738125],
+        #                        [ 39.82304951,  19.7316645 ],
+        #                        [ 49.13396732,  91.50407477],
+        #                        [ 15.558725  ,  38.64495505],
+        #                        [ 26.48748143,  75.01758954],
+        #                        [  3.3549437 ,   4.48305704],
+        #                        [ 75.87577087,  35.93555343],
+        #                        [ 92.6430865 ,  72.51349166],
+        #                        [198.60379193, 186.63266023]])
+        # self.anchors = np.array([-(anchors_wh[:, 0] * 0.5), -(anchors_wh[:, 1] * 0.5),
+        #                          (anchors_wh[:, 0] * 0.5), (anchors_wh[:, 1] * 0.5)]).transpose(1, 0)
+
         size = self.stride * self.stride
         count = 0
         for r in self.ratios:
-            ws = int(math.sqrt(size * 1. / r))
+            ws = int(math.sqrt(size*1. / r))
             hs = int(ws * r)
+
             for s in self.scales:
                 w = ws * s
                 h = hs * s
-                self.anchors[count][:] = [-w * 0.5,
-                                          -h * 0.5,
-                                          w * 0.5,
-                                          h * 0.5][:]
+                self.anchors[count][:] = [-w*0.5, -h*0.5, w*0.5, h*0.5][:]
                 count += 1
+
+        print(f"anchors:\n {self.anchors}")
 
     def generate_all_anchors(self, im_c, size):
         """

@@ -303,8 +303,8 @@ class PCBDatasetTest():
         template_x1y1x2y2 = np.stack((template_x1, template_y1, template_x2, template_y2), axis=0)
         # print(f"template: {type(template_x1y1x2y2)}")
         # print(f"image path: {template[0]}")
-        # print(f"[{template_x1, template_y1, template_x2, template_y2}]")
-        # print(f"search: \n{search[1]}")
+        # print(f"template loc: [{template_x1, template_y1, template_x2, template_y2}]")
+        # print(f"search loc: \n{search[1]}")
 
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
