@@ -23,7 +23,6 @@ from pysot.core.config import cfg
 
 logger = logging.getLogger("global")
 
-import pysot.datasets.check_image as check_image
 import ipdb
 from pysot.datasets.crop_image import crop_like_SiamFC
 from torch.utils.data import DataLoader
@@ -310,11 +309,11 @@ class PCBDatasetTest():
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
         return {
-            "image_path":     template[0],
+            # "image_path":     template[0],
+            "template":       (template_path, template_x1y1x2y2),
             "template_image": template_image,
             "search_image":   search_image,
             "cls":            self.images[index][1],
-            "template":       template_x1y1x2y2,
             "search":         np.array(search_bbox)
         }
         
@@ -467,15 +466,15 @@ class PCBDatasetTest():
         template_image = list()
         search_image = list()
         cls = list()
-        template = list()
+        # template = list()
         search = list()
 
         for b in batch:
-            image_path.append(b['image_path'])
+            # image_path.append(b['image_path'])
             template_image.append(b['template_image'])
             search_image.append(b['search_image'])
             cls.append(b['cls'])
-            template.append(b['template'])
+            # template.append(b['template'])
             search.append(b['search'])
                 
         # return {
@@ -487,11 +486,11 @@ class PCBDatasetTest():
         #         'bbox': bbox
         #        }
         return {
-            "image_path":     image_path,
+            # "image_path":     image_path,
+            "template":       b["template"],
             "template_image": template_image,
             "search_image":   search_image,
             "cls":            cls,
-            "template":       template,
             "search":         search
         }
     

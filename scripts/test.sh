@@ -15,7 +15,7 @@
 # --dataset ./testing_dataset/PCB/val/
 
 python ./tools/test_pcb.py \
-    --model ./save_models/my_model/model_e20.pth \
+    --model ./experiments/siamrpn_r50_l234_dwxcorr/model.pth \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
 	--dataset ./testing_dataset/PCB/val/ \
 	--annotation ./testing_dataset/PCB/val/ \

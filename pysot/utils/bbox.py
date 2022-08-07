@@ -188,7 +188,7 @@ def get_axis_aligned_bbox(region):
     """
     nv = region.shape[0]
     if nv == 8:     # nv 怎麼可能等於 8 阿??
-        assert False, f"WHAT, nv == 8!?"
+        assert False, "WHAT, nv == 8!?"
         cx = np.mean(region[0::2])
         cy = np.mean(region[1::2])
         x1 = min(region[0::2])
@@ -206,8 +206,8 @@ def get_axis_aligned_bbox(region):
         y = region[1]
         w = region[2]
         h = region[3]
-        cx = x+w/2
-        cy = y+h/2
+        cx = x + (w / 2)
+        cy = y + (h / 2)
     return cx, cy, w, h
 
 

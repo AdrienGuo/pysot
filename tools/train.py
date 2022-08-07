@@ -60,15 +60,13 @@ def seed_torch(seed=0):
 
 def build_data_loader():
     logger.info("build train dataset")
-    # train_dataset
     train_dataset = PCBDataset()
     logger.info("build dataset done")
 
     train_sampler = None
     if get_world_size() > 1:
         train_sampler = DistributedSampler(train_dataset)
-    if DEBUG:
-        print(f"train_sampler: {train_sampler}")
+
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.TRAIN.BATCH_SIZE,
                               collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
@@ -196,6 +194,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         epoch_cls_loss = 0
         epoch_loc_loss = 0
         epoch_total_loss = 0
+
         for idx, data in enumerate(train_loader):
             tb_idx = idx
             # if idx % num_per_epoch == 0 and idx != 0:
