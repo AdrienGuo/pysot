@@ -112,7 +112,7 @@ class AnchorTarget:
         #     & (anchor_box[2] < cfg.TRAIN.SEARCH_SIZE + self._allowed_border)
         #     & (anchor_box[3] < cfg.TRAIN.SEARCH_SIZE + self._allowed_border)
         # )[0]
-        
+
         # print(f"idx_inside: {idxs_inside.shape}")
         # anchor_box = anchor_box[:, idxs_inside]
         # anchor_center = anchor_center[:, idxs_inside]

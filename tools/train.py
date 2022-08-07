@@ -346,17 +346,17 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
     
-    constants = {
-        "epochs": cfg.TRAIN.EPOCH,
-        "batch_size": cfg.TRAIN.BATCH_SIZE,
-        "lr": cfg.TRAIN.BASE_LR,
-        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    }
-    wandb.init(
-        project="siamrpnpp",
-        entity="adrien88",
-        name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-        config=constants
-    )
+    # constants = {
+    #     "epochs": cfg.TRAIN.EPOCH,
+    #     "batch_size": cfg.TRAIN.BATCH_SIZE,
+    #     "lr": cfg.TRAIN.BASE_LR,
+    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    # }
+    # wandb.init(
+    #     project="siamrpnpp",
+    #     entity="adrien88",
+    #     name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
+    #     config=constants
+    # )
     
     main()
