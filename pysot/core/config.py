@@ -50,15 +50,15 @@ __C.TRAIN.PRETRAINED = ''
 # __C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
-__C.TRAIN.MODEL_DIR = './save_models/siamrpn_r50_l234_dwxcorr'
+__C.TRAIN.MODEL_DIR = './save_models/my_model'
 __C.TRAIN.START_EPOCH = 0
 __C.TRAIN.EPOCH = 20
 __C.TRAIN.BATCH_SIZE = 32
-__C.TRAIN.SAVE_MODEL_FREQ = 5
+__C.TRAIN.SAVE_MODEL_FREQ = 2
 
 # edit
 # __C.TRAIN.NUM_WORKERS = 1
-__C.TRAIN.NUM_WORKERS = 8
+__C.TRAIN.NUM_WORKERS = 0
 
 __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.WEIGHT_DECAY = 0.0001
@@ -68,7 +68,6 @@ __C.TRAIN.LOC_WEIGHT = 1.2
 __C.TRAIN.MASK_WEIGHT = 1
 
 __C.TRAIN.PRINT_FREQ = 20
-__C.TRAIN.SAVE_MODEL_FREQ = 2
 
 __C.TRAIN.LOG_GRADS = False
 
@@ -247,7 +246,7 @@ __C.ANCHOR.RATIOS = [0.33, 0.5, 1, 2, 3]
 __C.ANCHOR.SCALES = [8]
 # Anchor number
 # __C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
-__C.ANCHOR.ANCHOR_NUM = 11
+__C.ANCHOR.ANCHOR_NUM = 5
 
 
 # ------------------------------------------------------------------------ #

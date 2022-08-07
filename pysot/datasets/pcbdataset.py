@@ -15,11 +15,12 @@ from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
 from pysot.utils.bbox import Center, Corner, center2corner
 from torch.utils.data import Dataset
+from pysot.utils.check_image import draw_box, save_image
 
 logger = logging.getLogger("global")
 
 import ipdb
-import pysot.datasets.check_image as check_image
+import pysot.utils.check_image as check_image
 from PIL import Image
 from pysot.datasets.crop_image import crop_like_SiamFC
 from torch.utils.data import DataLoader
@@ -177,7 +178,7 @@ class PCBDataset():
         elif type == "search":
             index = np.random.randint(low=0, high=len(self.images))
             return self.get_image_anno(index, self.search)
-    
+
     # def _get_bbox(self, image, shape, type):
     #     """
     #     Args:
@@ -294,9 +295,10 @@ class PCBDataset():
         # Step 1.
         # get template and search images (raw data)
         ####################################################################
+        print(f"load image from: {template[0]}")
         template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
-        
+
         # image_h, image_w = search_image.shape[:2]
         # template_box = center2corner(template[1])
         # tmplt_x1, tmplt_x2 = image_w * template_box[0], image_w * template_box[2]
@@ -332,9 +334,30 @@ class PCBDataset():
                                               template_box,
                                               cfg.TRAIN.EXEMPLAR_SIZE)
 
+        # bbox ((x1, y1, x2, y2), num)
         search_image, bbox = self.search_aug(search_image,
                                              search_bbox,
                                              cfg.TRAIN.SEARCH_SIZE)
+
+        # 檢查圖片
+        # template_dir = "./image_check/train/template/"
+        # template_path = os.path.join(template_dir, f"{index}.jpg")
+        # save_image(template_image, template_path)
+        # print(f"save template image to: {template_path}")
+
+        # search_dir = "./image_check/train/search/"
+        # search_path = os.path.join(search_dir, f"{index}.jpg")
+        # save_image(search_image, search_path)
+        # print(f"save search image to: {search_path}")
+
+        # gt_dir = "./image_check/train/gt/"
+        # gt_path = os.path.join(gt_dir, f"{index}.jpg")
+        # bbox[2] = bbox[2] - bbox[0]
+        # bbox[3] = bbox[3] - bbox[1]
+        # gt_image = draw_box(search_image, np.transpose(bbox, (1, 0)))
+        # save_image(gt_image, gt_path)
+        # print(f"save gt image to: {gt_path}")
+
 
         ####################################################################
         # Step 3.
@@ -439,7 +462,7 @@ class PCBDataset():
         # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
         
         cls, delta, delta_weight, overlap = self.anchor_target(
-            bbox, cfg.TRAIN.OUTPUT_SIZE, neg)
+            bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
 
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)

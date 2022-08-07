@@ -20,7 +20,7 @@ from pysot.datasets.augmentation import Augmentation
 from pysot.core.config import cfg
 
 
-import pysot.datasets.check_image as check_image
+import pysot.pysot.utils.check_image as check_image
 from torch.utils.data import DataLoader
 import ipdb
 

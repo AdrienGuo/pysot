@@ -1,18 +1,20 @@
 # Copyright (c) SenseTime. All Rights Reserved.
-
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+
+import os
 
 import ipdb
 import numpy as np
 from pysot.core.config import cfg
+from pysot.utils.check_image import draw_box, save_image
 from pysot.utils.anchor import Anchors
 from pysot.utils.bbox import IoU, corner2center, target_delta, target_overlaps
 
 DEBUG = cfg.DEBUG
 
 class AnchorTarget:
-    def __init__(self,):
+    def __init__(self):
         self.anchors = Anchors(cfg.ANCHOR.STRIDE,
                                cfg.ANCHOR.RATIOS,
                                cfg.ANCHOR.SCALES)
@@ -22,10 +24,7 @@ class AnchorTarget:
 
         self._allowed_border = cfg.TRAIN.ALLOWED_BORDER
 
-        # print(f"anchors: {self.anchors.all_anchors[0]}")
-        # ipdb.set_trace()
-
-    def __call__(self, target, size, neg=False):
+    def __call__(self, target, size, neg=False, index=None):
         """
         Args:
             target: box (x1, y1, x2, y2)
@@ -170,5 +169,31 @@ class AnchorTarget:
         # 這個 delta_weight 讓我找好久... 07/14/2022
 
         cls[neg] = 0
+
+        # 印出原本的 anchor
+        all_anchors = self.anchors.all_anchors[0]
+        anchor = all_anchors[:, 0:1, 0, 0]
+        print(f"anchor: {anchor}")
+        anchor = np.transpose(anchor, (1, 0))
+        img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
+        anchor_image = draw_box(img, anchor)
+        anchor_dir = "./image_check/train/anchor/"
+        anchor_path = os.path.join(anchor_dir, "anchor.jpg")
+        save_image(anchor_image, anchor_path)
+        print(f"save anchor image to: {anchor_path}")
+
+        # 把 anchor 印出來
+        # pos = np.where(cls == 1)
+        # pos_anchors = all_anchors[:, pos[0], pos[1], pos[2]]
+        # pos_anchors = np.transpose(pos_anchors, (1, 0))
+
+        # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
+        # pos_image = draw_box(img, pos_anchors)
+        # pos_dir = "./image_check/train/pos/"
+        # pos_path = os.path.join(pos_dir, f"{index}.jpg")
+        # save_image(pos_image, pos_path)
+        # print(f"save pos image to: {pos_path}")
+
+        ipdb.set_trace()
 
         return cls, delta, delta_weight, overlap

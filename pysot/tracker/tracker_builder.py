@@ -8,7 +8,7 @@ from __future__ import unicode_literals
 from pysot.core.config import cfg
 # from pysot.tracker.siamrpn_tracker import SiamRPNTracker
 # 使用亭儀寫好的測試方法
-from pysot.tracker.siamrpn_tracker_amy import SiamRPNTracker
+from pysot.tracker.siamrpn_tracker_adrien import SiamRPNTracker
 
 # from pysot.tracker.siammask_tracker import SiamMaskTracker
 from pysot.tracker.siammask_tracker_amy import SiamMaskTracker

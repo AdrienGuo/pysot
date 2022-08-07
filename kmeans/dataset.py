@@ -20,7 +20,7 @@ from kmeans.augmentation import template_crop
 logger = logging.getLogger("global")
 
 import ipdb
-import pysot.datasets.check_image as check_image
+import pysot.pysot.utils.check_image as check_image
 from PIL import Image
 from pysot.datasets.crop_image import crop_like_SiamFC
 from torch.utils.data import DataLoader
