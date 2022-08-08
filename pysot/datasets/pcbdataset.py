@@ -56,11 +56,15 @@ class PCBDataset():
 
         # data augmentation
         self.template_aug = Augmentation(
-            "template"
+            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
+            search_size=cfg.TRAIN.SEARCH_SIZE,
+            type="template"
         )
         
         self.search_aug = Augmentation(
-            "search"
+            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
+            search_size=cfg.TRAIN.SEARCH_SIZE,
+            type="search"
         )
         
         # self.search_aug = Augmentation(
@@ -295,7 +299,7 @@ class PCBDataset():
         # Step 1.
         # get template and search images (raw data)
         ####################################################################
-        print(f"load image from: {template[0]}")
+        # print(f"load image from: {template[0]}")
         template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
 
@@ -330,14 +334,17 @@ class PCBDataset():
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
 
-        template_image, _ = self.template_aug(template_image,
-                                              template_box,
-                                              cfg.TRAIN.EXEMPLAR_SIZE)
+        template_image, _ = self.template_aug(
+            template_image,
+            template_box,
+            
+        )
 
         # bbox ((x1, y1, x2, y2), num)
-        search_image, bbox = self.search_aug(search_image,
-                                             search_bbox,
-                                             cfg.TRAIN.SEARCH_SIZE)
+        search_image, bbox, _ = self.search_aug(
+            search_image,
+            search_bbox,
+        )
 
         # 檢查圖片
         # template_dir = "./image_check/train/template/"
@@ -352,9 +359,10 @@ class PCBDataset():
 
         # gt_dir = "./image_check/train/gt/"
         # gt_path = os.path.join(gt_dir, f"{index}.jpg")
-        # bbox[2] = bbox[2] - bbox[0]
-        # bbox[3] = bbox[3] - bbox[1]
-        # gt_image = draw_box(search_image, np.transpose(bbox, (1, 0)))
+        # tmp_bbox = bbox.copy()
+        # tmp_bbox[2] = tmp_bbox[2] - tmp_bbox[0]
+        # tmp_bbox[3] = tmp_bbox[3] - tmp_bbox[1]
+        # gt_image = draw_box(search_image, np.transpose(tmp_bbox, (1, 0)))
         # save_image(gt_image, gt_path)
         # print(f"save gt image to: {gt_path}")
 
@@ -511,10 +519,10 @@ class PCBDataset():
     
 
 if __name__ == "__main__":
-    print(f"Loading dataset...")
+    print("Loading dataset...")
     train_dataset = PCBDataset()
     train_dataset.__getitem__(0)
-    print(f"Loading dataset has done!")
+    print("Loading dataset has done!")
 
     # train_loader = DataLoader(train_dataset,
     #                           batch_size=cfg.TRAIN.BATCH_SIZE,

@@ -83,10 +83,11 @@ def target_overlaps(anchor, target):
             intersection_width = np.maximum(0, intersection_x2 - intersection_x1)
             intersection_height = np.maximum(0, intersection_y2 - intersection_y1)
             intersection_area = intersection_width * intersection_height
-            
+
             ua = target_area + anchor_area - intersection_area
             assert ua > 0, "wrong" + \
-                f"{target_area}, {anchor_area}, {intersection_area}"
+                f"anchor_flatten: {anchor_flatten[:, n]}" \
+                f"target: {target[:, k]}"
             overlaps[n, k] = intersection_area / ua
 
     # 確保 iou 都大於 0
@@ -95,6 +96,39 @@ def target_overlaps(anchor, target):
     assert overlaps[overlaps > 1].size == 0, "overlaps has area bigger than 1!!!"
 
     return overlaps
+
+
+def target_delta(anchor, target, argmax):
+    """ 算每個 anchor 跟對應 target 的 delta
+        參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
+    Args:
+        anchor (4(corner), anchor_num, output_size, output_size)
+        target (4(center), target_num)
+        argmax (all_anchor_num, ): for each anchor, the "idx" of gt with the highest overlap
+    Return:
+        delta:
+    """
+    delta = np.zeros((4, argmax.shape[0]), dtype=np.float32)
+    anchor_flatten = np.reshape(anchor, (4, -1))
+    acx, acy, aw, ah = anchor_flatten[0], anchor_flatten[1], anchor_flatten[2], anchor_flatten[3]
+    tcx, tcy, tw, th = corner2center(target)
+    for i in range(argmax.shape[0]):
+        # Closest target (it might have IoU < threshold)
+        # 這裡就一樣照算，因為之後會乘上 delta_weight 所以就算 IoU = 0 也沒關係
+        closest_target_idx = argmax[i]
+        tcx_closest = tcx[closest_target_idx]
+        tcy_closest = tcy[closest_target_idx]
+        tw_closest = tw[closest_target_idx]
+        th_closest = th[closest_target_idx]
+
+        delta[0] = (tcx_closest - acx) / aw
+        delta[1] = (tcy_closest - acy) / ah
+        delta[2] = np.log(tw_closest / aw)
+        delta[3] = np.log(th_closest / ah)
+
+    delta = np.reshape(delta, anchor.shape)
+
+    return delta
 
 
 def IoU(rect1, rect2):
@@ -122,38 +156,6 @@ def IoU(rect1, rect2):
     inter = ww * hh
     iou = inter / (area + target_a - inter)
     return iou
-
-
-def target_delta(anchor, target, argmax):
-    """ 算每個 anchor 跟對應 target 的 delta
-        參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
-    Args:
-        anchor: (center)
-        target: (corner)
-    Return:
-        delta:
-    """
-    delta = np.zeros((4, argmax.shape[0]), dtype=np.float32)
-    anchor_flatten = np.reshape(anchor, (4, -1))
-    acx, acy, aw, ah = anchor_flatten[0], anchor_flatten[1], anchor_flatten[2], anchor_flatten[3]
-    tcx, tcy, tw, th = corner2center(target)
-    for i in range(argmax.shape[0]):
-        # Closest target (it might have IoU < 0.7)
-        # 這裡就一樣照算，因為之後會乘上 delta_weight 所以就算 IoU = 0 也沒關係
-        index_closest = argmax[i]
-        tcx_closest = tcx[index_closest]
-        tcy_closest = tcy[index_closest]
-        tw_closest = tw[index_closest]
-        th_closest = th[index_closest]
-
-        delta[0] = (tcx_closest - acx) / aw
-        delta[1] = (tcy_closest - acy) / ah
-        delta[2] = np.log(tw_closest / aw)
-        delta[3] = np.log(th_closest / ah)
-
-    delta = np.reshape(delta, anchor.shape)
-
-    return delta
 
 
 def cxy_wh_2_rect(pos, sz):

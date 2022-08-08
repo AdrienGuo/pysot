@@ -1,33 +1,32 @@
 # Copyright (c) SenseTime. All Rights Reserved.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
+import argparse
 import json
 import logging
-from re import I
-import sys
 import os
-import argparse
+import sys
+from re import I
 
 import cv2
 import numpy as np
-from torch.utils.data import Dataset
-
-from pysot.utils.bbox import Corner, center2corner, Center
+from pysot.core.config import cfg
 from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
-from pysot.core.config import cfg
+from pysot.utils.bbox import Center, Corner, center2corner
+from pysot.utils.check_image import draw_box, save_image
+from torch.utils.data import Dataset
 
 logger = logging.getLogger("global")
 
 import ipdb
+from PIL import Image
 from pysot.datasets.crop_image import crop_like_SiamFC
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from PIL import Image
+
 DEBUG = cfg.DEBUG
 
 parser = argparse.ArgumentParser(description='siamrpn testing')
@@ -60,12 +59,16 @@ class PCBDatasetTest():
         self.search = search
 
         self.template_aug = Augmentation(
-                                "template"
-                            )
+            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
+            search_size=cfg.TRAIN.SEARCH_SIZE,
+            type="template"
+        )
         
         self.search_aug = Augmentation(
-                                "search"
-                            )
+            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
+            search_size=cfg.TRAIN.SEARCH_SIZE,
+            type="search"
+        )
         
 
     def _make_dataset(self, dir_path):
@@ -284,37 +287,62 @@ class PCBDatasetTest():
 
         template_image = cv2.imread(template_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search_path)
-        print(f"template: {template_image.shape}")
-        print(f"search_image: {search_image.shape}")
 
-        # template_image, _ = self.template_aug(template_image,
-        #                                       template_box,
-        #                                       cfg.TRAIN.EXEMPLAR_SIZE)
+        ####################################################################
+        # Step 2.
+        # process the template and search images
+        ####################################################################
+        template_image, template_box = self.template_aug(
+            template_image,
+            template_box
+        )
 
-        # search_image, bbox = self.search_aug(search_image,
-        #                                      search_bbox,
-        #                                      cfg.TRAIN.SEARCH_SIZE)
+        search_image, bbox, r = self.search_aug(
+            search_image,
+            search_bbox,
+        )
 
-        image_h, image_w = search_image.shape[:2]
-        template_box = center2corner(template[1])
-        template_x1, template_x2 = image_w * template_box[0], image_w * template_box[2]
-        template_y1, template_y2 = image_h * template_box[1], image_h * template_box[3]
-        template_x1y1x2y2 = np.stack((template_x1, template_y1, template_x2, template_y2), axis=0)
+        # # 檢查圖片
+        # template_dir = "./image_check/val/template/"
+        # template_path = os.path.join(template_dir, f"{index}.jpg")
+        # save_image(template_image, template_path)
+        # print(f"save template image to: {template_path}")
+
+        # search_dir = "./image_check/val/search/"
+        # search_path = os.path.join(search_dir, f"{index}.jpg")
+        # save_image(search_image, search_path)
+        # print(f"save search image to: {search_path}")
+
+        # gt_dir = "./image_check/val/gt/"
+        # gt_path = os.path.join(gt_dir, f"{index}.jpg")
+        # tmp_bbox = bbox.copy()
+        # tmp_bbox[2] = tmp_bbox[2] - tmp_bbox[0]
+        # tmp_bbox[3] = tmp_bbox[3] - tmp_bbox[1]
+        # gt_image = draw_box(search_image, np.transpose(tmp_bbox, (1, 0)))
+        # save_image(gt_image, gt_path)
+        # print(f"save gt image to: {gt_path}")
+
+        # img_h, img_w = search_image.shape[:2]
+        # template_box = center2corner(template[1])
+        # template_x1, template_x2 = img_w * template_box[0], img_w * template_box[2]
+        # template_y1, template_y2 = img_h * template_box[1], img_h * template_box[3]
+        # template_x1y1x2y2 = np.stack((template_x1, template_y1, template_x2, template_y2), axis=0)
         # print(f"template: {type(template_x1y1x2y2)}")
         # print(f"image path: {template[0]}")
         # print(f"template loc: [{template_x1, template_y1, template_x2, template_y2}]")
         # print(f"search loc: \n{search[1]}")
 
-        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
+        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # (3, 127, 127)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
         return {
             # "image_path":     template[0],
-            "template":       (template_path, template_x1y1x2y2),
+            "template":       (template_path, template_box),
             "template_image": template_image,
             "search_image":   search_image,
             "cls":            self.images[index][1],
-            "search":         np.array(search_bbox)
+            "search":         np.array(search_bbox),
+            "r":              r
         }
         
         # if DEBUG:
@@ -463,20 +491,22 @@ class PCBDatasetTest():
             a tensor of images, lists of varying-size tensors of bounding boxes, etc
         """
         image_path = list()
+        template = list()
         template_image = list()
         search_image = list()
         cls = list()
-        # template = list()
         search = list()
+        r = list()
 
         for b in batch:
             # image_path.append(b['image_path'])
+            template.append(b['template'])
             template_image.append(b['template_image'])
             search_image.append(b['search_image'])
             cls.append(b['cls'])
-            # template.append(b['template'])
             search.append(b['search'])
-                
+            r.append(b["r"])
+
         # return {
         #         'template_image': template_image,
         #         'search_image': search_image,
@@ -487,11 +517,12 @@ class PCBDatasetTest():
         #        }
         return {
             # "image_path":     image_path,
-            "template":       b["template"],
+            "template":       template,
             "template_image": template_image,
             "search_image":   search_image,
             "cls":            cls,
-            "search":         search
+            "search":         search,
+            "r":              r
         }
     
 

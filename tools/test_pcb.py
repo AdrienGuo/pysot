@@ -181,11 +181,12 @@ def test(test_loader, tracker, inner_dir):
         template = data['template']
         template_image = [torch.from_numpy(template_image).cuda() for template_image in data['template_image']]
         search_image = [torch.from_numpy(search_image).cuda() for search_image in data['search_image']]
+        scale_ratios = data['r']
         # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
         # search = [torch.from_numpy(search).cuda() for search in data['search']]
 
-        # image_path = torch.stack(image_path, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
-        template_image = torch.stack(template_image, dim=0)
+        # image_path = torch.stack(image_path, dim=0)
+        template_image = torch.stack(template_image, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
         search_image = torch.stack(search_image, dim=0)
         # cls = torch.stack(cls, dim=0)
         # template = torch.stack(template, dim=0)
@@ -195,8 +196,8 @@ def test(test_loader, tracker, inner_dir):
         # load image
         ####################################################################
         # get the image
+        template = template[0]
         image_path = template[0]
-        template_corner = template[1]
         print(f"load image from: {image_path}")
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -207,24 +208,30 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # 用圖片檔名當作 sub_dir 的名稱
         sub_dir = os.path.join(inner_dir, image_name)
+
         if not os.path.isdir(sub_dir):
             os.makedirs(sub_dir)
             print(f"create dir: {sub_dir}")
+        # 創 sub_dir/original，裡面存 original image
+        original_dir = os.path.join(sub_dir, "original")
+        if not os.path.isdir(original_dir):
+            os.makedirs(original_dir)
+            print(f"create dir: {original_dir}")
         # 創 sub_dir/search，裡面存 search image
         search_dir = os.path.join(sub_dir, "search")
         if not os.path.isdir(search_dir):
             os.makedirs(search_dir)
             print(f"create dir: {search_dir}")
-        # 創 sub_dir/z_crop，裡面存 z_crop
-        z_dir = os.path.join(sub_dir, "z_crop")
+        # 創 sub_dir/template，裡面存 template image
+        z_dir = os.path.join(sub_dir, "template")
         if not os.path.isdir(z_dir):
             os.makedirs(z_dir)
             print(f"Create dir: {z_dir}")
-        # 創 sub_dir/x_crop，裡面存 x_crop
-        x_dir = os.path.join(sub_dir, "x_crop")
-        if not os.path.isdir(x_dir):
-            os.makedirs(x_dir)
-            print(f"Create dir: {x_dir}")
+        # # 創 sub_dir/search，裡面存 search image
+        # x_dir = os.path.join(sub_dir, "x_img")
+        # if not os.path.isdir(x_dir):
+        #     os.makedirs(x_dir)
+        #     print(f"Create dir: {x_dir}")
         # 創 sub_dir/annotation，裡面存 annotation
         anno_dir = os.path.join(sub_dir, "annotation")
         if not os.path.isdir(anno_dir):
@@ -237,11 +244,18 @@ def test(test_loader, tracker, inner_dir):
             print(f"Create dir: {pred_dir}")
 
         ####################################################################
+        # save original image
+        ####################################################################
+        original_path = os.path.join(original_dir, f"{image_name}.jpg")
+        save_image(image, original_path)
+        print(f"save original image to: {original_path}")
+
+        ####################################################################
         # save search image
         ####################################################################
-        search_image_tmp = search_image[0].cpu().numpy()
+        search_image_tmp = search_image[0].cpu().numpy().copy()
         search_image_tmp = search_image_tmp.transpose(1, 2, 0)      # (3, 255, 255) -> (255, 255, 3)
-        search_path = os.path.join(search_dir, image_name + ".jpg")
+        search_path = os.path.join(search_dir, f"{image_name}.jpg")
         save_image(search_image_tmp, search_path)
         print(f"save search image to: {search_path}")
 
@@ -250,44 +264,58 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         pred_boxes = []
         scores = None
-        # turn to [x1, y1, w, h], in order to match the input of .track()
-        gt_box = [                      # (x1, y1, w, h)
-            template_corner[0],
-            template_corner[1],
-            template_corner[2] - template_corner[0],
-            template_corner[3] - template_corner[1]
+        template_box = template[1]
+        # template_corner = template[1]
+        # # turn to (x1, y1, w, h), in order to match the input of .track()
+        # gt_box = [                      # (x1, y1, w, h)
+        #     template_corner[0],
+        #     template_corner[1],
+        #     template_corner[2] - template_corner[0],
+        #     template_corner[3] - template_corner[1]
+        # ]
+        template_box = [                      # (x1, y1, w, h)
+            template_box[0],
+            template_box[1],
+            template_box[2] - template_box[0],
+            template_box[3] - template_box[1]
         ]
-        pred_boxes.append(gt_box)
-        gt_box = np.array(gt_box)
+
+        print(f"template_box: {template_box}")
+        pred_boxes.append(template_box)
+        # gt_box = np.array(gt_box)
         # cx, cy, w, h = get_axis_aligned_bbox(gt_box)
         # gt_bbox_xywh = [cx-w/2, cy-h/2, w, h]   # (x1, y1, w, h)
 
         ####################################################################
         # init tracker
+        # save template image to ./results/images/{image_name}/template/{idx}.jpg
         ####################################################################
         # 用 template image 將 tracker 初始化
-        z_crop = tracker.init(image, gt_box)
-
-        # save template image to ./results/images/{image_name}/template/{idx}.jpg
-        z_crop = np.transpose(z_crop, (1, 2, 0))        # [3, 127, 127] -> [127, 127, 3]
+        # z_crop = tracker.init(image, gt_box)
+        z_img = tracker.init(template_image)
+        z_img = np.transpose(z_img, (1, 2, 0))        # (3, 127, 127) -> (127, 127, 3)
         z_path = os.path.join(z_dir, f"{idx}.jpg")
-        save_image(z_crop, z_path)
-        print(f"save z_crop image to: {z_path}")
+        save_image(z_img, z_path)
+        print(f"save z_img image to: {z_path}")
 
         ####################################################################
         # tracking
         ####################################################################
         # 用 search image 進行 "track" 的動作
         # search_image = data['search_image']
-        outputs = tracker.track(image)
+        outputs = tracker.track(search_image, scale_ratios)
         scores = outputs['top_scores']
-        pred_boxes.append(outputs['bboxes'])
+        print(f"bbox: {outputs['bboxes'][0]}")
+        for bbox in outputs["bboxes"]:
+            pred_boxes.append(bbox)
+        # pred_boxes = [pred_boxes.append(bbox) for bbox in outputs['bboxes']]
+        print(f"pred_boxes: {pred_boxes}")
         # save search image
-        x_crop = outputs['x_crop']
-        x_crop = np.transpose(x_crop, (1, 2, 0))
-        x_path = os.path.join(x_dir, f"{idx}.jpg")
-        save_image(x_crop, x_path)
-        print(f"save x_crop image to: {x_path}")
+        x_img = outputs['x_img']
+        x_img = np.transpose(x_img, (1, 2, 0))
+        # x_path = os.path.join(x_dir, f"{idx}.jpg")
+        # save_image(x_img, x_path)
+        # print(f"save x_img image to: {x_path}")
 
         ####################################################################
         # save annotation file
@@ -295,6 +323,7 @@ def test(test_loader, tracker, inner_dir):
         anno_path = os.path.join(anno_dir, f"{idx}.txt")
         with open(anno_path, 'w') as f:
             for x in pred_boxes:
+                print(x)
                 f.write(','.join(map(str, x)) + '\n')
                 # f.write(','.join([str(i) for i in x]) + '\n')
         print(f"save annotation result to: {anno_path}")
@@ -302,10 +331,10 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # draw the pred boxes
         ####################################################################
-        pred_image = draw_preds(sub_dir, search_image_tmp, scores, anno_path, idx)
+        pred_image = draw_preds(sub_dir, x_img, scores, anno_path, idx)
         pred_path = os.path.join(pred_dir, f"{idx}.jpg")
         if pred_image is None:      # 如果沒偵測到物件，存 search image
-            save_image(search_image_tmp, pred_path)
+            save_image(x_img, pred_path)
         else:
             save_image(pred_image, pred_path)
         print(f"save pred image to: {pred_path}")
@@ -323,7 +352,8 @@ if __name__ == "__main__":
     # test_loader = test_dataset.__getitem__(0)
     test_loader = DataLoader(test_dataset,
                              batch_size=1,
-                             collate_fn=test_dataset.collate_fn)
+                             collate_fn=test_dataset.collate_fn,
+                             num_workers=8)
     # test_loader = test_loader[:1]
     # print(len(test_loader.dataset))
     
