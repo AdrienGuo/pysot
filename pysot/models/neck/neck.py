@@ -19,10 +19,17 @@ class AdjustLayer(nn.Module):
 
     def forward(self, x):
         x = self.downsample(x)
-        if x.size(3) < 20:
-            l = (x.size(3) - self.center_size) // 2
-            r = l + self.center_size
-            x = x[:, :, l:r, l:r]
+
+        # 就在這裡!! 會把 template feature 做 crop
+        """ 原文
+        Thus we crop the center 7 × 7 regions [41] as the template
+        feature where each feature cell can still capture the entire
+        target region.
+        """
+        # if x.size(3) < 20:
+        #     l = (x.size(3) - self.center_size) // 2
+        #     r = l + self.center_size
+        #     x = x[:, :, l:r, l:r]
         return x
 
 

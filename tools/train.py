@@ -67,12 +67,15 @@ def build_data_loader():
     if get_world_size() > 1:
         train_sampler = DistributedSampler(train_dataset)
 
-    train_loader = DataLoader(train_dataset,
-                              batch_size=cfg.TRAIN.BATCH_SIZE,
-                              collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
-                              num_workers=cfg.TRAIN.NUM_WORKERS,
-                              pin_memory=True,
-                              sampler=train_sampler)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=cfg.TRAIN.BATCH_SIZE,
+        collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
+        num_workers=cfg.TRAIN.NUM_WORKERS,
+        # persistent_workers=True,
+        # pin_memory=True,
+        # sampler=train_sampler
+    )
     return train_loader
 
 
@@ -196,40 +199,43 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         epoch_total_loss = 0
 
         for idx, data in enumerate(train_loader):
-            tb_idx = idx
-            # if idx % num_per_epoch == 0 and idx != 0:
-            #     for idx, pg in enumerate(optimizer.param_groups):
-            #         logger.info('epoch {} lr {}'.format(epoch, pg['lr']))
-            #         if rank == 0:
-            #             tb_writer.add_scalar('lr/group{}'.format(idx+1),
-            #                                 pg['lr'], tb_idx)
+            batch_start = time.time()
+            # tb_idx = idx
+            # # if idx % num_per_epoch == 0 and idx != 0:
+            # #     for idx, pg in enumerate(optimizer.param_groups):
+            # #         logger.info('epoch {} lr {}'.format(epoch, pg['lr']))
+            # #         if rank == 0:
+            # #             tb_writer.add_scalar('lr/group{}'.format(idx+1),
+            # #                                 pg['lr'], tb_idx)
 
-            data_time = average_reduce(time.time() - end)
-            # if rank == 0:
-            #     tb_writer.add_scalar('time/data', data_time, tb_idx)
+            # data_time = average_reduce(time.time() - end)
+            # # if rank == 0:
+            # #     tb_writer.add_scalar('time/data', data_time, tb_idx)
 
-            outputs = model(data)
-            batch_cls_loss = outputs['cls_loss']
-            batch_loc_loss = outputs['loc_loss']
-            batch_total_loss = outputs['total_loss']
-            print(f"cls_loss: {batch_cls_loss:<6.3f} | loc_loss: {batch_loc_loss:<6.3f} | total_loss: {batch_total_loss:<6.3f}")
+            # outputs = model(data)
+            # batch_cls_loss = outputs['cls_loss']
+            # batch_loc_loss = outputs['loc_loss']
+            # batch_total_loss = outputs['total_loss']
+            # print(f"cls_loss: {batch_cls_loss:<6.3f} | loc_loss: {batch_loc_loss:<6.3f} | total_loss: {batch_total_loss:<6.3f}")
 
-            epoch_cls_loss += batch_cls_loss
-            epoch_loc_loss += batch_loc_loss
-            epoch_total_loss += batch_total_loss
+            # epoch_cls_loss += batch_cls_loss
+            # epoch_loc_loss += batch_loc_loss
+            # epoch_total_loss += batch_total_loss
 
-            if is_valid_number(batch_total_loss.data.item()):
-                optimizer.zero_grad()
-                batch_total_loss.backward()
-                reduce_gradients(model)
+            # if is_valid_number(batch_total_loss.data.item()):
+            #     optimizer.zero_grad()
+            #     batch_total_loss.backward()
+            #     reduce_gradients(model)
 
-                if rank == 0 and cfg.TRAIN.LOG_GRADS:
-                    log_grads(model.module, tb_writer, tb_idx)
+            #     if rank == 0 and cfg.TRAIN.LOG_GRADS:
+            #         log_grads(model.module, tb_writer, tb_idx)
 
-                # clip gradient
-                clip_grad_norm_(model.parameters(), cfg.TRAIN.GRAD_CLIP)
-                optimizer.step()
-        
+            #     # clip gradient
+            #     clip_grad_norm_(model.parameters(), cfg.TRAIN.GRAD_CLIP)
+            #     optimizer.step()
+            batch_end = time.time()
+            print(f"=== batch duration: {batch_end - batch_start:.4f} s ===\n")
+
         lr_scheduler.step()
         
         epoch_cls_loss = epoch_cls_loss / len(train_loader)
@@ -275,10 +281,13 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
             save_model_path = cfg.TRAIN.MODEL_DIR + '/model_e%d.pth' % (epoch)
             torch.save(
-                    {'epoch': epoch,
+                {
+                    'epoch': epoch,
                     'state_dict': model.module.state_dict(),
-                    'optimizer': optimizer.state_dict()},
-                    save_model_path)
+                    'optimizer': optimizer.state_dict()
+                },
+                save_model_path
+            )
             print(f"save model to: {save_model_path}")
         end = time.time()
 
@@ -310,7 +319,7 @@ def main():
         backbone_path = os.path.join(cur_path, '../', cfg.BACKBONE.PRETRAINED)
         load_pretrain(model.backbone, backbone_path)
 
-    # create tensorboard writer
+    # # create tensorboard writer
     if rank == 0 and cfg.TRAIN.LOG_DIR:
         tb_writer = SummaryWriter(cfg.TRAIN.LOG_DIR)
     else:
@@ -344,8 +353,10 @@ def main():
 
 if __name__ == '__main__':
     seed_torch(args.seed)
-    
+
     # constants = {
+    #     "anchor": cfg.ANCHOR.ANCHOR_NUM,
+    #     "score_size": cfg.TRAIN.OUTPUT_SIZE,
     #     "epochs": cfg.TRAIN.EPOCH,
     #     "batch_size": cfg.TRAIN.BATCH_SIZE,
     #     "lr": cfg.TRAIN.BASE_LR,

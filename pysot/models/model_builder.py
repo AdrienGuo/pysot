@@ -2,6 +2,8 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import time
+
 import cv2
 import ipdb
 import torch
@@ -83,18 +85,19 @@ class ModelBuilder(nn.Module):
     def forward(self, data):
         """ only used in training
         """
+        # start = time.time()
         template = [torch.from_numpy(template).cuda() for template in data['template_image']]
         search = [torch.from_numpy(search).cuda() for search in data['search_image']]
         label_cls = [torch.from_numpy(label_cls).cuda() for label_cls in data['label_cls']]
         label_loc = [torch.from_numpy(label_loc).cuda() for label_loc in data['label_loc']]
         label_loc_weight = [torch.from_numpy(label_loc_weight).cuda() for label_loc_weight in data['label_loc_weight']]
 
-        template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
+        template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last two dims)
         search = torch.stack(search, dim=0)
         label_cls = torch.stack(label_cls, dim=0)
         label_loc = torch.stack(label_loc, dim=0)
         label_loc_weight = torch.stack(label_loc_weight, dim=0)
-        
+
         # template_image = template.cpu().numpy()
         # print(f"template: {template_image.shape}")
         # cv2.imwrite("./image_check/trash/template.jpg", template_image[0].transpose(1, 2, 0))
@@ -139,5 +142,8 @@ class ModelBuilder(nn.Module):
             mask_loss = None
             outputs['total_loss'] += cfg.TRAIN.MASK_WEIGHT * mask_loss
             outputs['mask_loss'] = mask_loss
-        
+
+        # end = time.time()
+        # print(f"=== forward duration: {end - start:.4f} s")
+
         return outputs

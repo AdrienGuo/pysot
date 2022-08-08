@@ -1,5 +1,4 @@
 # Copyright (c) SenseTime. All Rights Reserved.
-
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
@@ -7,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 import cv2
 import numpy as np
@@ -14,8 +14,8 @@ from pysot.core.config import cfg
 from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
 from pysot.utils.bbox import Center, Corner, center2corner
-from torch.utils.data import Dataset
 from pysot.utils.check_image import draw_box, save_image
+from torch.utils.data import Dataset
 
 logger = logging.getLogger("global")
 
@@ -33,12 +33,13 @@ pyv = sys.version[0]
 if pyv[0] == '3':
     cv2.ocl.setUseOpenCL(False)
 
+
 class PCBDataset():
     def __init__(self) -> None:
         """ 這裡就是負責讀取資料
         """
         super(PCBDataset, self).__init__()
-        
+
         # create anchor target
         self.anchor_target = AnchorTarget()
 
@@ -56,11 +57,15 @@ class PCBDataset():
 
         # data augmentation
         self.template_aug = Augmentation(
-            "template"
+            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
+            search_size=cfg.TRAIN.SEARCH_SIZE,
+            type="template"
         )
         
         self.search_aug = Augmentation(
-            "search"
+            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
+            search_size=cfg.TRAIN.SEARCH_SIZE,
+            type="search"
         )
         
         # self.search_aug = Augmentation(
@@ -275,6 +280,9 @@ class PCBDataset():
         return len(self.images)
 
     def __getitem__(self, index):
+
+        getitem_start = time.time()
+
         logger.debug("__getitem__")
         # 就只是隨機 gray 而已 (在 augmentation 才會用到，那為甚麼不要在 .xxx_aug() 在做就好啊...)
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
@@ -295,7 +303,7 @@ class PCBDataset():
         # Step 1.
         # get template and search images (raw data)
         ####################################################################
-        print(f"load image from: {template[0]}")
+        # print(f"load image from: {template[0]}")
         template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(search[0])
 
@@ -330,14 +338,17 @@ class PCBDataset():
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
 
-        template_image, _ = self.template_aug(template_image,
-                                              template_box,
-                                              cfg.TRAIN.EXEMPLAR_SIZE)
+        template_image, _ = self.template_aug(
+            template_image,
+            template_box,
+            
+        )
 
         # bbox ((x1, y1, x2, y2), num)
-        search_image, bbox = self.search_aug(search_image,
-                                             search_bbox,
-                                             cfg.TRAIN.SEARCH_SIZE)
+        search_image, bbox, _ = self.search_aug(
+            search_image,
+            search_bbox,
+        )
 
         # 檢查圖片
         # template_dir = "./image_check/train/template/"
@@ -352,9 +363,10 @@ class PCBDataset():
 
         # gt_dir = "./image_check/train/gt/"
         # gt_path = os.path.join(gt_dir, f"{index}.jpg")
-        # bbox[2] = bbox[2] - bbox[0]
-        # bbox[3] = bbox[3] - bbox[1]
-        # gt_image = draw_box(search_image, np.transpose(bbox, (1, 0)))
+        # tmp_bbox = bbox.copy()
+        # tmp_bbox[2] = tmp_bbox[2] - tmp_bbox[0]
+        # tmp_bbox[3] = tmp_bbox[3] - tmp_bbox[1]
+        # gt_image = draw_box(search_image, np.transpose(tmp_bbox, (1, 0)))
         # save_image(gt_image, gt_path)
         # print(f"save gt image to: {gt_path}")
 
@@ -460,9 +472,14 @@ class PCBDataset():
         # new_bbox[2] = bbox[2][random_pick]
         # new_bbox[3] = bbox[3][random_pick]
         # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
-        
+
+        getitem_start = time.time()
+
         cls, delta, delta_weight, overlap = self.anchor_target(
             bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
+
+        getitem_end = time.time()
+        # print(f"=== getitem duration: {getitem_end - getitem_start} s ===")
 
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
@@ -511,10 +528,10 @@ class PCBDataset():
     
 
 if __name__ == "__main__":
-    print(f"Loading dataset...")
+    print("Loading dataset...")
     train_dataset = PCBDataset()
     train_dataset.__getitem__(0)
-    print(f"Loading dataset has done!")
+    print("Loading dataset has done!")
 
     # train_loader = DataLoader(train_dataset,
     #                           batch_size=cfg.TRAIN.BATCH_SIZE,

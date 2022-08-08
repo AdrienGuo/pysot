@@ -38,7 +38,7 @@ def draw_box(image, boxes, type=None, scores=None):
     # draw targets
     for idx, box in enumerate(boxes):
         cv2.rectangle(image_new, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), color=color, thickness=thickness)
-        if scores:      # 在框框標上分數
+        if np.any(scores):      # 在框框標上分數
             fontFace = cv2.FONT_HERSHEY_COMPLEX
             fontScale = 0.5
             thickness = 1
@@ -75,7 +75,7 @@ def draw_preds(sub_dir, search_image, scores, annotation_path, idx):
                 anno = re.sub("\[|\]", "", anno)
                 anno = anno.split(',')
                 anno = list(map(float, anno))
-                preds.append(anno)
+                preds.append(anno[:-1])
 
     pred_image = draw_box(search_image, [template], type="template")
     pred_image = draw_box(pred_image, preds, type="pred", scores=scores)

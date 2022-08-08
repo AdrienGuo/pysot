@@ -1,8 +1,8 @@
 import math
 
-import torch.nn as nn
 import torch
-
+import torch.nn as nn
+from pysot.core.config import cfg
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50']
 
@@ -225,7 +225,8 @@ def resnet50(**kwargs):
 
 
 if __name__ == '__main__':
-    net = resnet50()
+    # Adrien edit
+    net = resnet50(used_layers=[2, 3, 4])
     print(net)
     net = net.cuda()
 
