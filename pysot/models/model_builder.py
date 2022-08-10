@@ -98,6 +98,11 @@ class ModelBuilder(nn.Module):
         label_loc = torch.stack(label_loc, dim=0)
         label_loc_weight = torch.stack(label_loc_weight, dim=0)
 
+        print(f"label_cls: {label_cls.shape}")
+        print(f"label_loc: {label_loc.shape}")
+
+        ipdb.set_trace()
+
         # template_image = template.cpu().numpy()
         # print(f"template: {template_image.shape}")
         # cv2.imwrite("./image_check/trash/template.jpg", template_image[0].transpose(1, 2, 0))

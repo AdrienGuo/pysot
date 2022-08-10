@@ -71,9 +71,6 @@ def target_overlaps(anchor, target):
     K = len(target[0])          # target 的數量
     overlaps = np.zeros((N, K), dtype=np.float32)
 
-    print(f"anchor continuous: {anchor_flatten.flags['C_CONTIGUOUS']}")
-    print(f"target continuous: {target.flags['C_CONTIGUOUS']}")
-
     for k in range(K):
         target_area = (target[2, k] - target[0, k]) * (target[3, k] - target[1, k])
         assert target_area > 0, f"target_area: {target_area}"

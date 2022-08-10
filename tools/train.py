@@ -200,39 +200,39 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
 
         for idx, data in enumerate(train_loader):
             batch_start = time.time()
-            # tb_idx = idx
-            # # if idx % num_per_epoch == 0 and idx != 0:
-            # #     for idx, pg in enumerate(optimizer.param_groups):
-            # #         logger.info('epoch {} lr {}'.format(epoch, pg['lr']))
-            # #         if rank == 0:
-            # #             tb_writer.add_scalar('lr/group{}'.format(idx+1),
-            # #                                 pg['lr'], tb_idx)
+            tb_idx = idx
+            # if idx % num_per_epoch == 0 and idx != 0:
+            #     for idx, pg in enumerate(optimizer.param_groups):
+            #         logger.info('epoch {} lr {}'.format(epoch, pg['lr']))
+            #         if rank == 0:
+            #             tb_writer.add_scalar('lr/group{}'.format(idx+1),
+            #                                 pg['lr'], tb_idx)
 
-            # data_time = average_reduce(time.time() - end)
-            # # if rank == 0:
-            # #     tb_writer.add_scalar('time/data', data_time, tb_idx)
+            data_time = average_reduce(time.time() - end)
+            # if rank == 0:
+            #     tb_writer.add_scalar('time/data', data_time, tb_idx)
 
-            # outputs = model(data)
-            # batch_cls_loss = outputs['cls_loss']
-            # batch_loc_loss = outputs['loc_loss']
-            # batch_total_loss = outputs['total_loss']
-            # print(f"cls_loss: {batch_cls_loss:<6.3f} | loc_loss: {batch_loc_loss:<6.3f} | total_loss: {batch_total_loss:<6.3f}")
+            outputs = model(data)
+            batch_cls_loss = outputs['cls_loss']
+            batch_loc_loss = outputs['loc_loss']
+            batch_total_loss = outputs['total_loss']
+            print(f"cls_loss: {batch_cls_loss:<6.3f} | loc_loss: {batch_loc_loss:<6.3f} | total_loss: {batch_total_loss:<6.3f}")
 
-            # epoch_cls_loss += batch_cls_loss
-            # epoch_loc_loss += batch_loc_loss
-            # epoch_total_loss += batch_total_loss
+            epoch_cls_loss += batch_cls_loss
+            epoch_loc_loss += batch_loc_loss
+            epoch_total_loss += batch_total_loss
 
-            # if is_valid_number(batch_total_loss.data.item()):
-            #     optimizer.zero_grad()
-            #     batch_total_loss.backward()
-            #     reduce_gradients(model)
+            if is_valid_number(batch_total_loss.data.item()):
+                optimizer.zero_grad()
+                batch_total_loss.backward()
+                reduce_gradients(model)
 
-            #     if rank == 0 and cfg.TRAIN.LOG_GRADS:
-            #         log_grads(model.module, tb_writer, tb_idx)
+                if rank == 0 and cfg.TRAIN.LOG_GRADS:
+                    log_grads(model.module, tb_writer, tb_idx)
 
-            #     # clip gradient
-            #     clip_grad_norm_(model.parameters(), cfg.TRAIN.GRAD_CLIP)
-            #     optimizer.step()
+                # clip gradient
+                clip_grad_norm_(model.parameters(), cfg.TRAIN.GRAD_CLIP)
+                optimizer.step()
             batch_end = time.time()
             print(f"=== batch duration: {batch_end - batch_start:.4f} s ===\n")
 
