@@ -281,7 +281,10 @@ class SiamRPNTracker(SiameseTracker):
             # print(f"score: {score}")
             # ipdb.set_trace()
             if score >= 0.5:
+<<<<<<< HEAD
                 top_scores.append(score)
+=======
+>>>>>>> anchor
                 cx = pred_bbox[0]   # + self.center_pos[0]
                 cy = pred_bbox[1]   # + self.center_pos[1]
                 #cx = pred_bbox[0]*x_img.shape[1]

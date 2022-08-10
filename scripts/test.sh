@@ -15,7 +15,11 @@
 # --dataset ./testing_dataset/PCB/val/
 
 python ./tools/test_pcb.py \
+<<<<<<< HEAD
     --model ./save_models/my_model/model_e100.pth \
+=======
+    --model ./save_models/my_model/model_e30.pth \
+>>>>>>> anchor
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
 	--dataset ./testing_dataset/PCB/train/ \
 	--annotation ./testing_dataset/PCB/train/ \
