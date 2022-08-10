@@ -10,6 +10,7 @@ import time
 
 import cv2
 import numpy as np
+import torch
 from pysot.core.config import cfg
 from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
@@ -54,6 +55,7 @@ class PCBDataset():
         self.images = images
         self.template = template
         self.search = search
+        self.max_num_box = self._find_max_num_box(self.search)    # targets 最多的數量
 
         # data augmentation
         self.template_aug = Augmentation(
@@ -155,6 +157,11 @@ class PCBDataset():
                                 box = np.stack(box).astype(np.float32)
                                 search.append(box)
         return images, template, search
+
+    def _find_max_num_box(self, boxes):
+        num_boxes = list(map(lambda x: x.shape[0], boxes))
+        max_num_boxes = max(num_boxes)
+        return max_num_boxes
     
     def get_image_anno(self, index, arg):
         """ 
@@ -333,7 +340,7 @@ class PCBDataset():
         ####################################################################
         # z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
         template_box = template[1]
-        search_bbox = search[1]
+        search_boxes = search[1]
 
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
@@ -344,10 +351,10 @@ class PCBDataset():
             
         )
 
-        # bbox ((x1, y1, x2, y2), num)
-        search_image, bbox, _ = self.search_aug(
+        # gt_boxes ((x1, y1, x2, y2), num)
+        search_image, gt_boxes, _ = self.search_aug(
             search_image,
-            search_bbox,
+            search_boxes,
         )
 
         # 檢查圖片
@@ -442,26 +449,33 @@ class PCBDataset():
         #     print(f"search_box type: {type(search_box)}")
         #     print(f"search_box:\n {search_box}")
         
-        # # (image, bbox) is the return data type
-        # """ 
-        # template_image, _ = self.template_aug(template_image,
-        #                                     template_box,
-        #                                     cfg.TRAIN.EXEMPLAR_SIZE,
-        #                                     gray=gray)
-
-        # search_image, bbox = self.search_aug(search_image,
-        #                                search_box,
-        #                                cfg.TRAIN.SEARCH_SIZE,
-        #                                gray=gray)
-        # """
-        
         ####################################################################
         # Step 4.
         # get the label for training
         ####################################################################
-        bbox = np.asarray(bbox)
-        # bbox = np.transpose(bbox, (1, 0))
-        bbox = Corner(bbox[0], bbox[1], bbox[2], bbox[3])
+        gt_boxes = np.asarray(gt_boxes)
+        # gt_boxes = np.transpose(gt_boxes, (1, 0))
+        gt_boxes = Corner(gt_boxes[0], gt_boxes[1], gt_boxes[2], gt_boxes[3])
+        gt_boxes = np.array(gt_boxes)
+        gt_boxes = np.transpose(gt_boxes, (1, 0))   # (4, num) -> (num, 4)
+        gt_boxes = torch.from_numpy(gt_boxes)
+
+        ####################################################################
+        # 要解決 gt_boxes 數量不一致的問題
+        ####################################################################
+        # check the bounding box (這照理來說也不應該發生吧...):
+        not_keep = (gt_boxes[:, 0] == gt_boxes[:, 2]) | (gt_boxes[:, 1] == gt_boxes[:, 3])
+        keep = torch.nonzero(not_keep == 0).view(-1)
+
+        gt_boxes_padding = torch.FloatTensor(self.max_num_box, gt_boxes.size(1)).zero_()
+
+        if keep.numel() != 0:
+            gt_boxes = gt_boxes[keep]
+            num_boxes = min(gt_boxes.size(0), self.max_num_box)
+            gt_boxes_padding[:num_boxes, :] = gt_boxes[:num_boxes]
+        else:
+            num_boxes = 0
+            assert False, "=== There are no targets!! ==="
 
         # # 先試試看單一追蹤
         # random_pick = np.random.randint(low=len(bbox[0]), size=1)
@@ -475,8 +489,8 @@ class PCBDataset():
 
         getitem_start = time.time()
 
-        cls, delta, delta_weight, overlap = self.anchor_target(
-            bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
+        # cls, delta, delta_weight, overlap = self.anchor_target(
+        #     bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
 
         getitem_end = time.time()
         # print(f"=== getitem duration: {getitem_end - getitem_start} s ===")
@@ -487,10 +501,11 @@ class PCBDataset():
         return {
             'template_image': template_image,
             'search_image': search_image,
-            'label_cls': cls,
-            'label_loc': delta,
-            'label_loc_weight': delta_weight,
-            'bbox': np.array(bbox)
+            # 'label_cls': cls,
+            # 'label_loc': delta,
+            # 'label_loc_weight': delta_weight,
+            'gt_boxes': gt_boxes_padding,
+            'num_boxes': num_boxes
         }
 
     def collate_fn(self, batch):
@@ -504,26 +519,26 @@ class PCBDataset():
         """
         template_image = list()
         search_image = list()
-        cls = list()
-        delta = list()
-        delta_weight = list()
-        bbox = list()
+        # cls = list()
+        # delta = list()
+        # delta_weight = list()
+        gt_boxes = list()
 
         for b in batch:
             template_image.append(b['template_image'])
             search_image.append(b['search_image'])
-            cls.append(b['label_cls'])
-            delta.append(b['label_loc'])
-            delta_weight.append(b['label_loc_weight'])
-            bbox.append(b['bbox'])
+            # cls.append(b['label_cls'])
+            # delta.append(b['label_loc'])
+            # delta_weight.append(b['label_loc_weight'])
+            gt_boxes.append(b['gt_boxes'])
                 
         return {
             'template_image': template_image,
             'search_image': search_image,
-            'label_cls': cls,
-            'label_loc': delta,
-            'label_loc_weight': delta_weight,
-            'bbox': bbox
+            # 'label_cls': cls,
+            # 'label_loc': delta,
+            # 'label_loc_weight': delta_weight,
+            'gt_boxes': gt_boxes
         }
     
 

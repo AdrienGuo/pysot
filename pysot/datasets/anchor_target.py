@@ -123,13 +123,9 @@ class AnchorTarget:
         
         # 多個 target 的 overlap 算法
 
-        anchortarget_start = time.time()
         overlaps = target_overlaps(
             np.ascontiguousarray(anchor_box, dtype=np.float32),
             np.ascontiguousarray(target_stack, dtype=np.float32))       # overlaps: (N, K)
-        anchortarget_end = time.time()
-
-        print(f"=== anchor target duration: {anchortarget_end - anchortarget_start} s ===")
 
         # 找 anchor 要對應到哪個 target
         # 參考 https://github.com/rbgirshick/py-faster-rcnn/blob/781a917b378dbfdedb45b6a56189a31982da1b43/lib/rpn/anchor_target_layer.py#L130
