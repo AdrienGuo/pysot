@@ -6,6 +6,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import argparse
+from ast import arg
 import logging
 import os
 import time
@@ -37,12 +38,13 @@ import wandb
 
 logger = logging.getLogger('global')
 parser = argparse.ArgumentParser(description='siamrpn tracking')
-parser.add_argument('--cfg', type=str, default='config.yaml',
-                    help='configuration of tracking')
-parser.add_argument('--seed', type=int, default=123456,
-                    help='random seed')
-parser.add_argument('--local_rank', type=int, default=0,
-                    help='compulsory for pytorch launcer')
+parser.add_argument('--cfg', type=str, default='config.yaml', help='configuration of tracking')
+parser.add_argument('--epoch', type=int, help='epoch')
+parser.add_argument('--batch_size', type=int, help='batch size')
+parser.add_argument('--template_bg', type=str, help='whether crop template with bg')
+parser.add_argument('--template_context_amount', type=float, help='how much bg for template')
+parser.add_argument('--seed', type=int, default=123456, help='random seed')
+parser.add_argument('--local_rank', type=int, default=0, help='compulsory for pytorch launcer')
 args = parser.parse_args()
 
 DEBUG = cfg.DEBUG
@@ -60,7 +62,7 @@ def seed_torch(seed=0):
 
 def build_data_loader():
     logger.info("build train dataset")
-    train_dataset = PCBDataset()
+    train_dataset = PCBDataset(args)
     logger.info("build dataset done")
 
     train_sampler = None
@@ -69,11 +71,10 @@ def build_data_loader():
 
     train_loader = DataLoader(
         train_dataset,
-        batch_size=cfg.TRAIN.BATCH_SIZE,
-        collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
+        batch_size=args.batch_size,
+        # collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
         num_workers=cfg.TRAIN.NUM_WORKERS,
-        # persistent_workers=True,
-        # pin_memory=True,
+        pin_memory=True,
         # sampler=train_sampler
     )
     return train_loader
@@ -118,7 +119,7 @@ def build_opt_lr(model, current_epoch=0):
                                 momentum=cfg.TRAIN.MOMENTUM,
                                 weight_decay=cfg.TRAIN.WEIGHT_DECAY)
 
-    lr_scheduler = build_lr_scheduler(optimizer, epochs=cfg.TRAIN.EPOCH)
+    lr_scheduler = build_lr_scheduler(optimizer, epochs=args.epoch)
     # lr_scheduler.step(cfg.TRAIN.START_EPOCH)
     # lr_scheduler.step()         # https://github.com/allenai/allennlp/issues/3922
     return optimizer, lr_scheduler
@@ -171,7 +172,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         return not(math.isnan(x) or math.isinf(x) or x > 1e4)
 
     world_size = get_world_size()
-    num_per_epoch = len(train_loader.dataset) // cfg.TRAIN.EPOCH // (cfg.TRAIN.BATCH_SIZE * world_size)
+    num_per_epoch = len(train_loader.dataset) // args.epoch // (args.batch_size * world_size)
     print(f"train_loader.dataset number: {len(train_loader.dataset)}")
 
     start_epoch = cfg.TRAIN.START_EPOCH
@@ -185,8 +186,9 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
     end = time.time()
 
     # 改成訓練多個 epoch (原版只訓練一個 epoch)
-    for epoch in range(cfg.TRAIN.EPOCH):
+    for epoch in range(args.epoch):
         epoch = epoch + 1
+        print(f"epoch: {epoch}")
         logger.info('epoch: {}'.format(epoch))
         # train backbone, 但他只會在 epoch=10 的時候訓練一次就沒了??
         if cfg.BACKBONE.TRAIN_EPOCH == epoch:
@@ -198,8 +200,9 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         epoch_loc_loss = 0
         epoch_total_loss = 0
 
+        epoch_start = time.time()
+
         for idx, data in enumerate(train_loader):
-            batch_start = time.time()
             tb_idx = idx
             # if idx % num_per_epoch == 0 and idx != 0:
             #     for idx, pg in enumerate(optimizer.param_groups):
@@ -212,7 +215,9 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             # if rank == 0:
             #     tb_writer.add_scalar('time/data', data_time, tb_idx)
 
+            # Forwarding
             outputs = model(data)
+
             batch_cls_loss = outputs['cls_loss']
             batch_loc_loss = outputs['loc_loss']
             batch_total_loss = outputs['total_loss']
@@ -233,11 +238,12 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                 # clip gradient
                 clip_grad_norm_(model.parameters(), cfg.TRAIN.GRAD_CLIP)
                 optimizer.step()
-            batch_end = time.time()
-            print(f"=== batch duration: {batch_end - batch_start:.4f} s ===\n")
+
+        epoch_end = time.time()
+        print(f"=== epoch duration: {epoch_end - epoch_start} s ===")
 
         lr_scheduler.step()
-        
+
         epoch_cls_loss = epoch_cls_loss / len(train_loader)
         epoch_loc_loss = epoch_loc_loss / len(train_loader)
         epoch_total_loss = epoch_total_loss / len(train_loader)
@@ -276,10 +282,24 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                 logger.info(info)
                 print_speed(idx+1+start_epoch*num_per_epoch,
                             average_meter.batch_time.avg,
-                            cfg.TRAIN.EPOCH * num_per_epoch)
+                            args.epoch * num_per_epoch)
 
         if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
-            save_model_path = cfg.TRAIN.MODEL_DIR + '/model_e%d.pth' % (epoch)
+            # save model directory
+            save_model_dir = os.path.join(
+                cfg.TRAIN.MODEL_DIR,
+                # k{}_r{}_e{}_b{}_{bg0.5}
+                f"k{cfg.ANCHOR.ANCHOR_NUM}_r{cfg.TRAIN.SEARCH_SIZE}_e{args.epoch}_b{args.batch_size}_{args.template_bg}{args.template_context_amount}"
+            )
+            if not os.path.exists(save_model_dir):
+                os.makedirs(save_model_dir)
+                print(f"create new model dir: {save_model_dir}")
+            # save model path
+            save_model_path = os.path.join(
+                save_model_dir,
+                f"model_e{epoch}.pth"
+            )
+
             torch.save(
                 {
                     'epoch': epoch,
@@ -354,19 +374,19 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
 
-    # constants = {
-    #     "anchor": cfg.ANCHOR.ANCHOR_NUM,
-    #     "score_size": cfg.TRAIN.OUTPUT_SIZE,
-    #     "epochs": cfg.TRAIN.EPOCH,
-    #     "batch_size": cfg.TRAIN.BATCH_SIZE,
-    #     "lr": cfg.TRAIN.BASE_LR,
-    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    # }
-    # wandb.init(
-    #     project="siamrpnpp",
-    #     entity="adrien88",
-    #     name=f"epoch{cfg.TRAIN.EPOCH}-batch{cfg.TRAIN.BATCH_SIZE}",
-    #     config=constants
-    # )
-    
+    constants = {
+        "anchor": cfg.ANCHOR.ANCHOR_NUM,
+        "score_size": cfg.TRAIN.OUTPUT_SIZE,
+        "epochs": args.epoch,
+        "batch_size": args.batch_size,
+        "lr": cfg.TRAIN.BASE_LR,
+        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    }
+    wandb.init(
+        project="siamrpnpp",
+        entity="adrien88",
+        name=f"e{args.epoch}-b{args.batch_size}-{args.template_bg}{args.template_context_amount}",
+        config=constants
+    )
+
     main()

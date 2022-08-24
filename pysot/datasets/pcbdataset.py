@@ -10,21 +10,22 @@ import time
 
 import cv2
 import numpy as np
+import torch
 from pysot.core.config import cfg
-from pysot.datasets.anchor_target import AnchorTarget
+# from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
 from pysot.utils.bbox import Center, Corner, center2corner
 from pysot.utils.check_image import draw_box, save_image
-from torch.utils.data import Dataset
+# from torch.utils.data import Dataset
 
 logger = logging.getLogger("global")
 
 import ipdb
-import pysot.utils.check_image as check_image
-from PIL import Image
-from pysot.datasets.crop_image import crop_like_SiamFC
-from torch.utils.data import DataLoader
-from torchvision import transforms
+# import pysot.utils.check_image as check_image
+# from PIL import Image
+# from pysot.datasets.crop_image import crop_like_SiamFC
+# from torch.utils.data import DataLoader
+# from torchvision import transforms
 
 DEBUG = cfg.DEBUG
 
@@ -35,13 +36,13 @@ if pyv[0] == '3':
 
 
 class PCBDataset():
-    def __init__(self) -> None:
+    def __init__(self, args) -> None:
         """ 這裡就是負責讀取資料
         """
         super(PCBDataset, self).__init__()
 
         # create anchor target
-        self.anchor_target = AnchorTarget()
+        # self.anchor_target = AnchorTarget()
 
         # 可以不用迴圈
         # for name in cfg.DATASET.NAMES:
@@ -54,6 +55,7 @@ class PCBDataset():
         self.images = images
         self.template = template
         self.search = search
+        self.max_num_box = self._find_max_num_box(self.search)    # targets 最多的數量
 
         # data augmentation
         self.template_aug = Augmentation(
@@ -67,6 +69,9 @@ class PCBDataset():
             search_size=cfg.TRAIN.SEARCH_SIZE,
             type="search"
         )
+
+        self.template_bg = args.template_bg
+        self.template_context_amount = args.template_context_amount
         
         # self.search_aug = Augmentation(
         #         cfg.DATASET.SEARCH.SHIFT,
@@ -155,6 +160,11 @@ class PCBDataset():
                                 box = np.stack(box).astype(np.float32)
                                 search.append(box)
         return images, template, search
+
+    def _find_max_num_box(self, boxes):
+        num_boxes = list(map(lambda x: x.shape[0], boxes))
+        max_num_boxes = max(num_boxes)
+        return max_num_boxes
     
     def get_image_anno(self, index, arg):
         """ 
@@ -280,10 +290,8 @@ class PCBDataset():
         return len(self.images)
 
     def __getitem__(self, index):
-
-        getitem_start = time.time()
-
         logger.debug("__getitem__")
+
         # 就只是隨機 gray 而已 (在 augmentation 才會用到，那為甚麼不要在 .xxx_aug() 在做就好啊...)
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
         
@@ -298,7 +306,7 @@ class PCBDataset():
             search = self.get_neg_pair("search")
         else:
             template, search = self.get_positive_pair(index)
-        
+
         ####################################################################
         # Step 1.
         # get template and search images (raw data)
@@ -321,11 +329,9 @@ class PCBDataset():
             print(f"shape template, search: {template[1].shape}, {search[1].shape}")
         assert template_image is not None, f"error image: {template[0]}"
 
-
         ####################################################################
         # Step 2.
-        # crop template image, 
-        # and get the scale which will be used in Step 3.
+        # process the template and search images
         # 
         # === 定義代號 ===
         # z: template
@@ -333,7 +339,7 @@ class PCBDataset():
         ####################################################################
         # z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
         template_box = template[1]
-        search_bbox = search[1]
+        search_boxes = search[1]
 
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
@@ -341,16 +347,17 @@ class PCBDataset():
         template_image, _ = self.template_aug(
             template_image,
             template_box,
-            
+            bg=self.template_bg,
+            context_amount=self.template_context_amount
         )
 
-        # bbox ((x1, y1, x2, y2), num)
-        search_image, bbox, _ = self.search_aug(
+        # gt_boxes ((x1, y1, x2, y2), num)
+        search_image, gt_boxes, _ = self.search_aug(
             search_image,
-            search_bbox,
+            search_boxes
         )
 
-        # 檢查圖片
+        # # 檢查圖片
         # template_dir = "./image_check/train/template/"
         # template_path = os.path.join(template_dir, f"{index}.jpg")
         # save_image(template_image, template_path)
@@ -363,13 +370,14 @@ class PCBDataset():
 
         # gt_dir = "./image_check/train/gt/"
         # gt_path = os.path.join(gt_dir, f"{index}.jpg")
-        # tmp_bbox = bbox.copy()
-        # tmp_bbox[2] = tmp_bbox[2] - tmp_bbox[0]
-        # tmp_bbox[3] = tmp_bbox[3] - tmp_bbox[1]
-        # gt_image = draw_box(search_image, np.transpose(tmp_bbox, (1, 0)))
+        # tmp_gt_boxes = gt_boxes.copy()
+        # tmp_gt_boxes[2] = tmp_gt_boxes[2] - tmp_gt_boxes[0]
+        # tmp_gt_boxes[3] = tmp_gt_boxes[3] - tmp_gt_boxes[1]
+        # gt_image = draw_box(search_image, np.transpose(tmp_gt_boxes, (1, 0)))
         # save_image(gt_image, gt_path)
         # print(f"save gt image to: {gt_path}")
 
+        # ipdb.set_trace()
 
         ####################################################################
         # Step 3.
@@ -442,26 +450,31 @@ class PCBDataset():
         #     print(f"search_box type: {type(search_box)}")
         #     print(f"search_box:\n {search_box}")
         
-        # # (image, bbox) is the return data type
-        # """ 
-        # template_image, _ = self.template_aug(template_image,
-        #                                     template_box,
-        #                                     cfg.TRAIN.EXEMPLAR_SIZE,
-        #                                     gray=gray)
-
-        # search_image, bbox = self.search_aug(search_image,
-        #                                search_box,
-        #                                cfg.TRAIN.SEARCH_SIZE,
-        #                                gray=gray)
-        # """
-        
         ####################################################################
         # Step 4.
-        # get the label for training
+        # get the gt_boxes for training
         ####################################################################
-        bbox = np.asarray(bbox)
-        # bbox = np.transpose(bbox, (1, 0))
-        bbox = Corner(bbox[0], bbox[1], bbox[2], bbox[3])
+        gt_boxes = np.asarray(gt_boxes)
+        # gt_boxes = np.transpose(gt_boxes, (1, 0))
+        gt_boxes = Corner(gt_boxes[0], gt_boxes[1], gt_boxes[2], gt_boxes[3])
+        gt_boxes = np.array(gt_boxes)
+        gt_boxes = np.transpose(gt_boxes, (1, 0))   # (4, num) -> (num, 4)
+        gt_boxes = torch.from_numpy(gt_boxes)
+
+        # 為了要解決 gt_boxes 數量不一致的問題
+        # check the bounding box (這照理來說也不應該發生吧...):
+        not_keep = (gt_boxes[:, 0] == gt_boxes[:, 2]) | (gt_boxes[:, 1] == gt_boxes[:, 3])
+        keep = torch.nonzero(not_keep == 0).view(-1)
+
+        gt_boxes_padding = torch.FloatTensor(self.max_num_box, gt_boxes.size(1)).zero_()
+
+        if keep.numel() != 0:
+            gt_boxes = gt_boxes[keep]
+            num_boxes = min(gt_boxes.size(0), self.max_num_box)
+            gt_boxes_padding[:num_boxes, :] = gt_boxes[:num_boxes]
+        else:
+            num_boxes = 0
+            assert False, "=== There are no targets!! ==="
 
         # # 先試試看單一追蹤
         # random_pick = np.random.randint(low=len(bbox[0]), size=1)
@@ -473,24 +486,21 @@ class PCBDataset():
         # new_bbox[3] = bbox[3][random_pick]
         # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
 
-        getitem_start = time.time()
+        # cls, delta, delta_weight, overlap = self.anchor_target(
+        #     bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
 
-        cls, delta, delta_weight, overlap = self.anchor_target(
-            bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
-
-        getitem_end = time.time()
-        # print(f"=== getitem duration: {getitem_end - getitem_start} s ===")
-
-        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # [3, 127, 127]
+        # (127, 127, 3) -> (3, 127, 127)
+        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
         return {
             'template_image': template_image,
             'search_image': search_image,
-            'label_cls': cls,
-            'label_loc': delta,
-            'label_loc_weight': delta_weight,
-            'bbox': np.array(bbox)
+            # 'label_cls': cls,
+            # 'label_loc': delta,
+            # 'label_loc_weight': delta_weight,
+            'gt_boxes': gt_boxes_padding,
+            'num_boxes': num_boxes
         }
 
     def collate_fn(self, batch):
@@ -504,26 +514,26 @@ class PCBDataset():
         """
         template_image = list()
         search_image = list()
-        cls = list()
-        delta = list()
-        delta_weight = list()
-        bbox = list()
+        # cls = list()
+        # delta = list()
+        # delta_weight = list()
+        gt_boxes = list()
 
         for b in batch:
             template_image.append(b['template_image'])
             search_image.append(b['search_image'])
-            cls.append(b['label_cls'])
-            delta.append(b['label_loc'])
-            delta_weight.append(b['label_loc_weight'])
-            bbox.append(b['bbox'])
+            # cls.append(b['label_cls'])
+            # delta.append(b['label_loc'])
+            # delta_weight.append(b['label_loc_weight'])
+            gt_boxes.append(b['gt_boxes'])
                 
         return {
             'template_image': template_image,
             'search_image': search_image,
-            'label_cls': cls,
-            'label_loc': delta,
-            'label_loc_weight': delta_weight,
-            'bbox': bbox
+            # 'label_cls': cls,
+            # 'label_loc': delta,
+            # 'label_loc_weight': delta_weight,
+            'gt_boxes': gt_boxes
         }
     
 

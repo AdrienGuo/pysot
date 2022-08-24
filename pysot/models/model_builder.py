@@ -14,6 +14,7 @@ from pysot.models.backbone import get_backbone
 from pysot.models.head import get_mask_head, get_refine_head, get_rpn_head
 from pysot.models.loss import select_cross_entropy_loss, weight_l1_loss
 from pysot.models.neck import get_neck
+from pysot.rpn.anchor_target import AnchorTarget
 
 # debug mode
 DEBUG = cfg.DEBUG
@@ -22,6 +23,12 @@ DEBUG = cfg.DEBUG
 class ModelBuilder(nn.Module):
     def __init__(self):
         super(ModelBuilder, self).__init__()
+
+        # size
+        self.output_size = cfg.TRAIN.OUTPUT_SIZE
+
+        # define rpn
+        self.anchor_target = AnchorTarget()
 
         # build backbone
         self.backbone = get_backbone(cfg.BACKBONE.TYPE,
@@ -84,19 +91,35 @@ class ModelBuilder(nn.Module):
 
     def forward(self, data):
         """ only used in training
+        Args:
+            只需要傳入 gt，
+            label_cls, label_loc 在這裡面算
         """
         # start = time.time()
-        template = [torch.from_numpy(template).cuda() for template in data['template_image']]
-        search = [torch.from_numpy(search).cuda() for search in data['search_image']]
-        label_cls = [torch.from_numpy(label_cls).cuda() for label_cls in data['label_cls']]
-        label_loc = [torch.from_numpy(label_loc).cuda() for label_loc in data['label_loc']]
-        label_loc_weight = [torch.from_numpy(label_loc_weight).cuda() for label_loc_weight in data['label_loc_weight']]
+        # template = [torch.from_numpy(template).cuda() for template in data['template_image']]
+        # search = [torch.from_numpy(search).cuda() for search in data['search_image']]
+        # label_cls = [torch.from_numpy(label_cls).cuda() for label_cls in data['label_cls']]
+        # label_loc = [torch.from_numpy(label_loc).cuda() for label_loc in data['label_loc']]
+        # label_loc_weight = [torch.from_numpy(label_loc_weight).cuda() for label_loc_weight in data['label_loc_weight']]
+        # gt_boxes = [torch.from_numpy(gt_box).cuda() for gt_box in data['gt_boxes']]
 
-        template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last two dims)
-        search = torch.stack(search, dim=0)
-        label_cls = torch.stack(label_cls, dim=0)
-        label_loc = torch.stack(label_loc, dim=0)
-        label_loc_weight = torch.stack(label_loc_weight, dim=0)
+        # template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last two dims)
+        # search = torch.stack(search, dim=0)
+        # label_cls = torch.stack(label_cls, dim=0)
+        # label_loc = torch.stack(label_loc, dim=0)
+        # label_loc_weight = torch.stack(label_loc_weight, dim=0)
+
+        ####################################################################
+        # 拿資料
+        ####################################################################
+        template = data['template_image'].cuda()
+        search = data['search_image'].cuda()
+        gt_boxes = data['gt_boxes'].cuda()
+
+        ####################################################################
+        # 計算 label_cls, label_loc
+        ####################################################################
+        label_cls, label_loc, label_loc_weight, _ = self.anchor_target(gt_boxes, self.output_size)
 
         print(f"label_cls: {label_cls.shape}")
         print(f"label_loc: {label_loc.shape}")
@@ -129,7 +152,7 @@ class ModelBuilder(nn.Module):
 
         # get loss
         # print(f"cls: {cls.shape}")
-        cls = self.log_softmax(cls)     # (b, 5, 25, 25, 2)
+        cls = self.log_softmax(cls)     # cls (b, 5, 25, 25, 2)
         # print(f"cls: {cls[0, 0, 0, 0, :]}")
         # print(f"label_cls: {label_cls.shape}")
         cls_loss = select_cross_entropy_loss(cls, label_cls)

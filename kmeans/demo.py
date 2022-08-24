@@ -2,12 +2,11 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
+from pysot.core.config import cfg
 from kmeans.dataset import PCBDataset
 from kmeans.kmean import AnchorKmeans
 
 plt.style.use('ggplot')
-
-w_img, h_img = 255, 255
 
 ####################################################################
 # Plot scatter of original boxes
@@ -21,7 +20,7 @@ plt.xlabel("width")
 plt.ylabel("height")
 plt.scatter(boxes[:, 0], boxes[:, 1], c='orange')
 ax = plt.gca()
-ax.set_aspect(1)    # 讓 x, y 他成正比
+ax.set_aspect(1)    # 讓 x, y 軸成正比
 save_path = "./kmeans/demo/boxes.jpg"
 plt.savefig(save_path)
 print(f"save boxes plot to: {save_path}")
@@ -87,7 +86,7 @@ plt.savefig(save_path)
 print(f"save k-iou plot to {save_path}")
 
 print('[INFO] The result anchors:')
-choose_k = 11
+choose_k = 5
 anchors = results[choose_k]['anchors']
 print(anchors)
 
@@ -102,22 +101,21 @@ plt.ylabel("height")
 plt.scatter(boxes[:, 0], boxes[:, 1], c="orange")
 plt.scatter(anchors[:, 0], anchors[:, 1], c="blue")
 ax = plt.gca()
-ax.set_aspect(1)    # 讓 x, y 他成正比
+ax.set_aspect(1)    # 讓 x, y 成正比
 
-save_path = "./kmeans/demo/boxes-kmeans11.jpg"
+save_path = f"./kmeans/demo/boxes-kmeans{choose_k}.jpg"
 plt.savefig(save_path)
-print(f"save boxes-kmeans11 plot to: {save_path}")
+print(f"save boxes-kmeans{choose_k} plot to: {save_path}")
 
 
 ####################################################################
 # visualizing kmeans anchors
 ####################################################################
 print('[INFO] Visualizing anchors')
-w_img, h_img = 255, 255
+w_img, h_img = cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE
 # anchors[:, 0] *= w_img
 # anchors[:, 1] *= h_img
 anchors = np.round(anchors).astype(int)
-print(f"anchors: {anchors}")
 
 rects = np.empty((anchors.shape[0], 4), dtype=int)
 for i in range(len(anchors)):
@@ -138,6 +136,6 @@ plt.ylabel("height")
 ax = plt.gca()
 ax.set_aspect(1)    # 讓 x, y 他成正比
 
-save_path = "./kmeans/demo/visualizing-kmeans11-anchors.jpg"
+save_path = f"./kmeans/demo/visualizing-kmeans{choose_k}-anchors.jpg"
 plt.savefig(save_path)
 print(f"save visualizing-anchors plot to: {save_path}")

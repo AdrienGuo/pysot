@@ -11,8 +11,8 @@ import sys
 import cv2
 import numpy as np
 from pysot.core.config import cfg
-from pysot.datasets.anchor_target import AnchorTarget
-from pysot.utils.bbox import Center, Corner, center2corner
+# from pysot.datasets.anchor_target import AnchorTarget
+# from pysot.utils.bbox import Center, Corner, center2corner
 from torch.utils.data import Dataset
 
 from kmeans.augmentation import template_crop
@@ -20,11 +20,7 @@ from kmeans.augmentation import template_crop
 logger = logging.getLogger("global")
 
 import ipdb
-import pysot.pysot.utils.check_image as check_image
-from PIL import Image
-from pysot.datasets.crop_image import crop_like_SiamFC
-from torch.utils.data import DataLoader
-from torchvision import transforms
+
 
 DEBUG = cfg.DEBUG
 
@@ -41,7 +37,7 @@ class PCBDataset():
         super(PCBDataset, self).__init__()
         
         # create anchor target
-        self.anchor_target = AnchorTarget()
+        # self.anchor_target = AnchorTarget()
 
         # 可以不用迴圈
         # for name in cfg.DATASET.NAMES:

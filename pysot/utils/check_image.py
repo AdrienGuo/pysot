@@ -1,5 +1,6 @@
 # This file only used for checking the images.
 # Nothing relates to the traing process.
+import ipdb
 import re
 from fileinput import filename
 from unittest import result
@@ -27,7 +28,7 @@ def draw_box(image, boxes, type=None, scores=None):
 
     if type == "template":
         color = (0, 0, 255)     # red
-        thickness = 5
+        thickness = 4
     elif type == "pred":
         color = (0, 255, 0)     # green
         thickness = 2
@@ -37,13 +38,14 @@ def draw_box(image, boxes, type=None, scores=None):
 
     # draw targets
     for idx, box in enumerate(boxes):
+        # 畫框框
         cv2.rectangle(image_new, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), color=color, thickness=thickness)
-        if np.any(scores):      # 在框框標上分數
+        # 在框框上面打分數
+        if np.any(scores):
             fontFace = cv2.FONT_HERSHEY_COMPLEX
             fontScale = 0.5
-            thickness = 1
             score = f"{scores[idx]:.3f}"
-            labelSize = cv2.getTextSize(score, fontFace, fontScale, thickness)
+            labelSize = cv2.getTextSize(score, fontFace, fontScale, thickness=1)
             _x1 = box[0] # bottomleft x of text
             _y1 = box[1] # bottomleft y of text
             _x2 = box[0] + labelSize[0][0] # topright x of text
@@ -67,7 +69,7 @@ def draw_preds(sub_dir, search_image, scores, annotation_path, idx):
 
         template = template.split(',')
         template = list(map(float, template))
-        if annos[0] == '\n':    # 當沒有偵測到物件時
+        if not annos:    # 當沒有偵測到物件時
             print("-- There is no predict item in this image. --")
         else:
             for anno in annos:

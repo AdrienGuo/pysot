@@ -40,24 +40,28 @@ __C.TRAIN.ALLOWED_BORDER = 0
 
 
 __C.TRAIN.EXEMPLAR_SIZE = 127
-__C.TRAIN.SEARCH_SIZE = 255
+__C.TRAIN.SEARCH_SIZE = 600
 __C.TRAIN.BASE_SIZE = 8
+
+# 這邊都要手動調整，真的超蠢...
+# 而且因為還會在 neck.py 裏面做裁切，要全部都自動計算又更麻煩了
+# 他們原始的 code 真的是很難用誒
 # __C.TRAIN.OUTPUT_SIZE = 25
-__C.TRAIN.OUTPUT_SIZE = 17
+__C.TRAIN.OUTPUT_SIZE = (__C.TRAIN.SEARCH_SIZE - __C.TRAIN.EXEMPLAR_SIZE) // 8 + 1
 
 __C.TRAIN.RESUME = ''
 
-__C.TRAIN.PRETRAINED = ''
-# __C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
+# __C.TRAIN.PRETRAINED = ''
+__C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
-__C.TRAIN.MODEL_DIR = './save_models/my_model'
+__C.TRAIN.MODEL_DIR = './save_models'
 __C.TRAIN.NUM_WORKERS = 0
-__C.TRAIN.SAVE_MODEL_FREQ = 10
+__C.TRAIN.SAVE_MODEL_FREQ = 20
 
 __C.TRAIN.START_EPOCH = 0
-__C.TRAIN.EPOCH = 100
-__C.TRAIN.BATCH_SIZE = 32
+# __C.TRAIN.EPOCH = 100
+# __C.TRAIN.BATCH_SIZE = 32
 __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.WEIGHT_DECAY = 0.0001
 
@@ -102,27 +106,18 @@ __C.DATASET.TEMPLATE = CN()
 # for detail discussion
 # __C.DATASET.TEMPLATE.SHIFT = 4
 __C.DATASET.TEMPLATE.SHIFT = 0
-
 # __C.DATASET.TEMPLATE.SCALE = 0.05
 __C.DATASET.TEMPLATE.SCALE = 0
-
 __C.DATASET.TEMPLATE.BLUR = 0.0
-
 __C.DATASET.TEMPLATE.FLIP = 0.0
-
 # __C.DATASET.TEMPLATE.COLOR = 1.0
 __C.DATASET.TEMPLATE.COLOR = 0
 
 __C.DATASET.SEARCH = CN()
-
 __C.DATASET.SEARCH.SHIFT = 64
-
 __C.DATASET.SEARCH.SCALE = 0.18
-
 __C.DATASET.SEARCH.BLUR = 0.0
-
 __C.DATASET.SEARCH.FLIP = 0.0
-
 __C.DATASET.SEARCH.COLOR = 1.0
 
 # Sample Negative pair see [DaSiamRPN](https://arxiv.org/pdf/1808.06048) for detail discussion

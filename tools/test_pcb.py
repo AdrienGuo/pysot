@@ -28,10 +28,12 @@ from torchvision import transforms
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
+parser.add_argument('--template_bg', type=str, help='whether crop template with bg')
+parser.add_argument('--template_context_amount', type=float, help='how much bg for template')
+parser.add_argument('--config', default='', type=str, help='config file')
 parser.add_argument('--dataset', type=str, help='datasets')
 parser.add_argument('--annotation', type=str, help='annotation for testing')
 parser.add_argument('--save_dir', type=str, help='save to which directory')
-parser.add_argument('--config', default='', type=str, help='config file')
 # parser.add_argument('--video', default='', type=str, help='eval one special video')
 # parser.add_argument('--vis', action='store_true', help='whether visualzie result')
 args = parser.parse_args()
@@ -176,19 +178,22 @@ torch.set_num_threads(1)
 #     draw_preds(image_dir, annotation_path, save_dir)
 
 
-def test(test_loader, tracker, inner_dir):
+def test(test_loader, tracker, dir):
     for idx, data in enumerate(test_loader):
-        # image_path = [image_path for image_path in data['image_path']]
-        template = data['template']
-        template_image = [torch.from_numpy(template_image).cuda() for template_image in data['template_image']]
-        search_image = [torch.from_numpy(search_image).cuda() for search_image in data['search_image']]
-        scale_ratios = data['r']
+        image_path = data['image_path'][0]
+        template = data['template'][0]
+        # template_image = [torch.from_numpy(template_image).cuda() for template_image in data['template_image']]
+        # search_image = [torch.from_numpy(search_image).cuda() for search_image in data['search_image']]
+        template_image = data['template_image'].cuda()
+        search_image = data['search_image'].cuda()
+        gt_boxes = data['gt_boxes'].cuda()      # 我其實不需要它，因為不會把所有的 gt 都畫在 pred image 上面 (很亂)
+        scale_ratio = data['r'][0].cpu().numpy()
         # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
         # search = [torch.from_numpy(search).cuda() for search in data['search']]
 
         # image_path = torch.stack(image_path, dim=0)
-        template_image = torch.stack(template_image, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
-        search_image = torch.stack(search_image, dim=0)
+        # template_image = torch.stack(template_image, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
+        # search_image = torch.stack(search_image, dim=0)
         # cls = torch.stack(cls, dim=0)
         # template = torch.stack(template, dim=0)
         # search = torch.stack(search, dim=0)
@@ -196,23 +201,21 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # load image
         ####################################################################
-        # get the image
-        template = template[0]
-        image_path = template[0]
+        # template = template[0]
+        # template = template[0]      # 好冗，但我暫時想不到其他方法
+        # image_path = image_path
         print(f"load image from: {image_path}")
-        image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image_name = image_path.split('/')[-1].split('.')[0]
 
         ####################################################################
         # creat directory
         ####################################################################
         # 用圖片檔名當作 sub_dir 的名稱
-        sub_dir = os.path.join(inner_dir, image_name)
-
+        image_name = image_path.split('/')[-1].split('.')[0]
+        sub_dir = os.path.join(dir, image_name)
         if not os.path.isdir(sub_dir):
             os.makedirs(sub_dir)
             print(f"create dir: {sub_dir}")
+
         # 創 sub_dir/original，裡面存 original image
         original_dir = os.path.join(sub_dir, "original")
         if not os.path.isdir(original_dir):
@@ -247,6 +250,8 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # save original image
         ####################################################################
+        image = cv2.imread(image_path)
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         original_path = os.path.join(original_dir, f"{image_name}.jpg")
         save_image(image, original_path)
         print(f"save original image to: {original_path}")
@@ -265,7 +270,11 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         pred_boxes = []
         scores = None
-        template_box = template[1]
+        template_box = template
+        # convert template_box to the original size
+        # template_box[0], template_box[2] = template_box[0] * image.shape[1], template_box[2] * image.shape[1]
+        # template_box[1], template_box[3] = template_box[1] * image.shape[0], template_box[3] * image.shape[0]
+
         # template_corner = template[1]
         # # turn to (x1, y1, w, h), in order to match the input of .track()
         # gt_box = [                      # (x1, y1, w, h)
@@ -274,15 +283,17 @@ def test(test_loader, tracker, inner_dir):
         #     template_corner[2] - template_corner[0],
         #     template_corner[3] - template_corner[1]
         # ]
-        template_box = [                      # (x1, y1, w, h)
+
+        # template_box: (x1, y1, x2, y2) -> (x1, y1, w, h)
+        template_box = [
             template_box[0],
             template_box[1],
             template_box[2] - template_box[0],
             template_box[3] - template_box[1]
         ]
-
         template_box = np.around(template_box, decimals=2)
         pred_boxes.append(template_box)
+
         # gt_box = np.array(gt_box)
         # cx, cy, w, h = get_axis_aligned_bbox(gt_box)
         # gt_bbox_xywh = [cx-w/2, cy-h/2, w, h]   # (x1, y1, w, h)
@@ -293,7 +304,7 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # 用 template image 將 tracker 初始化
         # z_crop = tracker.init(image, gt_box)
-        z_img = tracker.init(template_image)
+        z_img = tracker.init(template_image, template_box)
         z_img = np.transpose(z_img, (1, 2, 0))        # (3, 127, 127) -> (127, 127, 3)
         z_path = os.path.join(z_dir, f"{idx}.jpg")
         save_image(z_img, z_path)
@@ -304,12 +315,12 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # 用 search image 進行 "track" 的動作
         # search_image = data['search_image']
-        outputs = tracker.track(search_image, scale_ratios)
+        outputs = tracker.track(image, search_image, scale_ratio)
         scores = np.around(outputs['top_scores'], decimals=2)
-        for bbox in outputs["bboxes"]:
+        for bbox in outputs['pred_boxes']:
             bbox = np.around(bbox, decimals=2)
             pred_boxes.append(bbox)
-        # pred_boxes = [pred_boxes.append(bbox) for bbox in outputs['bboxes']]
+        # pred_boxes = [pred_boxes.append(bbox) for bbox in outputs['pred_boxes']]
 
         # save search image
         x_img = outputs['x_img']
@@ -332,48 +343,50 @@ def test(test_loader, tracker, inner_dir):
         ####################################################################
         # draw the pred boxes
         ####################################################################
-        pred_image = draw_preds(sub_dir, x_img, scores, anno_path, idx)
         pred_path = os.path.join(pred_dir, f"{idx}.jpg")
+        pred_image = draw_preds(sub_dir, image, scores, anno_path, idx)
         if pred_image is None:      # 如果沒偵測到物件，存 search image
-            save_image(x_img, pred_path)
+            save_image(image, pred_path)
         else:
             save_image(pred_image, pred_path)
         print(f"save pred image to: {pred_path}")
 
-        ipdb.set_trace()
+        print("=" * 20)
 
 
 if __name__ == "__main__":
-    data_dir = args.dataset.split("/")[-2]
-    data_dir = os.path.join(args.save_dir, data_dir)
-    if not os.path.isdir(data_dir):
-        os.makedirs(data_dir)
-    
+    # data_dir = args.dataset.split("/")[-2]
+    # data_dir = os.path.join(args.save_dir, data_dir)
+    # if not os.path.isdir(data_dir):
+    #     os.makedirs(data_dir)
+
     test_dataset = PCBDatasetTest(args)
     # test_loader = test_dataset.__getitem__(0)
     test_loader = DataLoader(test_dataset,
                              batch_size=1,
-                             collate_fn=test_dataset.collate_fn,
+                            #  collate_fn=test_dataset.collate_fn,
                              num_workers=0)
     # test_loader = test_loader[:1]
     # print(len(test_loader.dataset))
-    
+
     cfg.merge_from_file(args.config)        # 不加 ModelBuilder() 會出問題ㄟ??
-    
+
     # create model
     model = ModelBuilder()
     # load model
     model = load_pretrain(model, args.model).cuda().eval()
 
     # model_name = args.model.split("/")[2].split(".")[0]
-    # model_name = "siamrpn_r50_l234_dwxcorr"
-    model_name = "my_model"
+    model_name = args.model.split('/')[-2]
+    print(f"model_name: {model_name}")
     print(f"load model from: {args.model}")
 
     # build tracker
     tracker = build_tracker(model)
 
-    inner_dir = os.path.join(data_dir, model_name)
-    test(test_loader, tracker, inner_dir)
+    dir = os.path.join(args.save_dir, model_name)
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    test(test_loader, tracker, dir)
 
     print("="*20, "Done!", "="*20, "\n")

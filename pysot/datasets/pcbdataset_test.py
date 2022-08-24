@@ -12,6 +12,7 @@ from re import I
 
 import cv2
 import numpy as np
+import torch
 from pysot.core.config import cfg
 from pysot.datasets.anchor_target import AnchorTarget
 from pysot.datasets.pcb_augmentation import Augmentation
@@ -42,6 +43,7 @@ pyv = sys.version[0]
 if pyv[0] == '3':
     cv2.ocl.setUseOpenCL(False)
 
+
 class PCBDatasetTest():
     def __init__(self, args) -> None:
         """ 這裡就是負責讀取資料
@@ -63,13 +65,15 @@ class PCBDatasetTest():
             search_size=cfg.TRAIN.SEARCH_SIZE,
             type="template"
         )
-        
+
         self.search_aug = Augmentation(
             template_size=cfg.TRAIN.EXEMPLAR_SIZE,
             search_size=cfg.TRAIN.SEARCH_SIZE,
             type="search"
         )
-        
+
+        self.template_bg = args.template_bg
+        self.template_context_amount = args.template_context_amount
 
     def _make_dataset(self, dir_path):
         """ 回傳資料
@@ -275,18 +279,20 @@ class PCBDatasetTest():
         return len(self.images)
 
     def __getitem__(self, index):
+        """ batch_size 只能設 1，因為我沒有處理 gt 數量不同的問題
+        """
         # get one dataset
         template, search = self.get_positive_pair(index)
-        
+
         ####################################################################
         # Step 1.
         # get template and search images
         ####################################################################
-        template_path, template_box = template[0], template[1]
-        search_path, search_bbox = search[0], search[1]
+        image_path, template_box = template[0], template[1]
+        image_path, search_bbox = search[0], search[1]
 
-        template_image = cv2.imread(template_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
-        search_image = cv2.imread(search_path)
+        template_image = cv2.imread(image_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
+        search_image = cv2.imread(image_path)
 
         ####################################################################
         # Step 2.
@@ -294,10 +300,13 @@ class PCBDatasetTest():
         ####################################################################
         template_image, template_box = self.template_aug(
             template_image,
-            template_box
+            template_box,
+            self.template_bg,
+            self.template_context_amount
         )
 
-        search_image, bbox, r = self.search_aug(
+        # gt_boxes ((x1, y1, x2, y2), num)
+        search_image, gt_boxes, r = self.search_aug(
             search_image,
             search_bbox,
         )
@@ -332,19 +341,26 @@ class PCBDatasetTest():
         # print(f"template loc: [{template_x1, template_y1, template_x2, template_y2}]")
         # print(f"search loc: \n{search[1]}")
 
+        # 處理 gt 的格式
+        # gt_boxes = np.asarray(gt_boxes)
+        gt_boxes = Corner(gt_boxes[0], gt_boxes[1], gt_boxes[2], gt_boxes[3])
+        gt_boxes = np.array(gt_boxes)
+        gt_boxes = np.transpose(gt_boxes, (1, 0))   # (4, num) -> (num, 4)
+        gt_boxes = torch.from_numpy(gt_boxes)
+
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # (3, 127, 127)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
         return {
-            # "image_path":     template[0],
-            "template":       (template_path, template_box),
-            "template_image": template_image,
-            "search_image":   search_image,
-            "cls":            self.images[index][1],
-            "search":         np.array(search_bbox),
-            "r":              r
+            "image_path":     image_path,
+            'template':       template_box,
+            'template_image': template_image,
+            'search_image':   search_image,
+            'cls':            self.images[index][1],
+            'gt_boxes':       gt_boxes,
+            'r':              r
         }
-        
+
         # if DEBUG:
         #     print(f"template image path: {template[0]}")
         #     print(f"search image path: {search[0]}")
