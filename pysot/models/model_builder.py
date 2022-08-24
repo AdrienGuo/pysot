@@ -119,7 +119,7 @@ class ModelBuilder(nn.Module):
         ####################################################################
         # 計算 label_cls, label_loc
         ####################################################################
-        label_cls, label_loc, label_loc_weight = self.anchor_target(gt_boxes, self.output_size)
+        label_cls, label_loc, label_loc_weight, _ = self.anchor_target(gt_boxes, self.output_size)
 
         # template_image = template.cpu().numpy()
         # print(f"template: {template_image.shape}")

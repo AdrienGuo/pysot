@@ -3,7 +3,6 @@ from __future__ import (absolute_import, division, print_function,
 
 import cv2
 import numpy as np
-from pysot.pysot.utils.check_image import draw_bbox
 from pysot.utils.bbox import Center, Corner, center2corner, corner2center
 
 
@@ -20,12 +19,6 @@ def template_crop(image, bbox, size):
 
     template_w = template_w * r
     template_h = template_h * r
-
-    assert template_w < 300, f"{template_w}"
-    assert template_h < 300, f"{template_h}, \n \
-    img: {img_w}, {img_h}, \n \
-    template: {bbox[2]}, {bbox[3]} \n \
-    template: {template_w}, {template_h}"
 
     return template_w, template_h
 
