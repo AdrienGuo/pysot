@@ -182,11 +182,9 @@ def test(test_loader, tracker, dir):
     for idx, data in enumerate(test_loader):
         image_path = data['image_path'][0]
         template = data['template'][0]
-        # template_image = [torch.from_numpy(template_image).cuda() for template_image in data['template_image']]
-        # search_image = [torch.from_numpy(search_image).cuda() for search_image in data['search_image']]
         template_image = data['template_image'].cuda()
         search_image = data['search_image'].cuda()
-        gt_boxes = data['gt_boxes'].cuda()      # 我其實不需要它，因為不會把所有的 gt 都畫在 pred image 上面 (很亂)
+        gt_boxes = data['gt_boxes'].cuda()    # 用在算 precision, recall
         scale_ratio = data['r'][0].cpu().numpy()
         # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
         # search = [torch.from_numpy(search).cuda() for search in data['search']]
@@ -207,7 +205,7 @@ def test(test_loader, tracker, dir):
         print(f"load image from: {image_path}")
 
         ####################################################################
-        # creat directory
+        # creat directories
         ####################################################################
         # 用圖片檔名當作 sub_dir 的名稱
         image_name = image_path.split('/')[-1].split('.')[0]
@@ -237,7 +235,7 @@ def test(test_loader, tracker, dir):
         #     os.makedirs(x_dir)
         #     print(f"Create dir: {x_dir}")
         # 創 sub_dir/annotation，裡面存 annotation
-        anno_dir = os.path.join(sub_dir, "annotation")
+        anno_dir = os.path.join(sub_dir, "pred_annotation")
         if not os.path.isdir(anno_dir):
             os.makedirs(anno_dir)
             print(f"Create dir: {anno_dir}")
@@ -259,10 +257,10 @@ def test(test_loader, tracker, dir):
         ####################################################################
         # save search image
         ####################################################################
-        search_image_tmp = search_image[0].cpu().numpy().copy()
-        search_image_tmp = search_image_tmp.transpose(1, 2, 0)      # (3, 255, 255) -> (255, 255, 3)
+        search_image_cpu = search_image[0].cpu().numpy().copy()
+        search_image_cpu = search_image_cpu.transpose(1, 2, 0)      # (3, 255, 255) -> (255, 255, 3)
         search_path = os.path.join(search_dir, f"{image_name}.jpg")
-        save_image(search_image_tmp, search_path)
+        save_image(search_image_cpu, search_path)
         print(f"save search image to: {search_path}")
 
         ####################################################################
@@ -270,7 +268,7 @@ def test(test_loader, tracker, dir):
         ####################################################################
         pred_boxes = []
         scores = None
-        template_box = template
+        template_box = template.cpu().numpy().squeeze()
         # convert template_box to the original size
         # template_box[0], template_box[2] = template_box[0] * image.shape[1], template_box[2] * image.shape[1]
         # template_box[1], template_box[3] = template_box[1] * image.shape[0], template_box[3] * image.shape[0]
@@ -314,8 +312,8 @@ def test(test_loader, tracker, dir):
         # tracking
         ####################################################################
         # 用 search image 進行 "track" 的動作
-        # search_image = data['search_image']
         outputs = tracker.track(image, search_image, scale_ratio)
+
         scores = np.around(outputs['top_scores'], decimals=2)
         for bbox in outputs['pred_boxes']:
             bbox = np.around(bbox, decimals=2)
@@ -336,7 +334,7 @@ def test(test_loader, tracker, dir):
         with open(anno_path, 'w') as f:
             f.write(', '.join(map(str, pred_boxes[0])) + '\n')    # template
             for i, x in enumerate(pred_boxes[1:]):
-                # format: [x1, y1, x2, y2, score]
+                # format: [x1, y1, w, h, score]
                 f.write(', '.join(map(str, x)) + ', ' + str(scores[i]) + '\n')
         print(f"save annotation result to: {anno_path}")
 
@@ -344,8 +342,8 @@ def test(test_loader, tracker, dir):
         # draw the pred boxes
         ####################################################################
         pred_path = os.path.join(pred_dir, f"{idx}.jpg")
-        pred_image = draw_preds(sub_dir, image, scores, anno_path, idx)
-        if pred_image is None:      # 如果沒偵測到物件，存 search image
+        pred_image = draw_preds(sub_dir, search_image_cpu, scores, anno_path, idx)
+        if pred_image is None:      # 如果沒偵測到物件，存 original image
             save_image(image, pred_path)
         else:
             save_image(pred_image, pred_path)
@@ -355,16 +353,10 @@ def test(test_loader, tracker, dir):
 
 
 if __name__ == "__main__":
-    # data_dir = args.dataset.split("/")[-2]
-    # data_dir = os.path.join(args.save_dir, data_dir)
-    # if not os.path.isdir(data_dir):
-    #     os.makedirs(data_dir)
-
     test_dataset = PCBDatasetTest(args)
     # test_loader = test_dataset.__getitem__(0)
     test_loader = DataLoader(test_dataset,
-                             batch_size=1,
-                            #  collate_fn=test_dataset.collate_fn,
+                             batch_size=1,    # 只能設 1
                              num_workers=0)
     # test_loader = test_loader[:1]
     # print(len(test_loader.dataset))

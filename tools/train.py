@@ -42,7 +42,7 @@ parser.add_argument('--cfg', type=str, default='config.yaml', help='configuratio
 parser.add_argument('--epoch', type=int, help='epoch')
 parser.add_argument('--batch_size', type=int, help='batch size')
 parser.add_argument('--template_bg', type=str, help='whether crop template with bg')
-parser.add_argument('--template_context_amount', type=float, help='how much bg for template')
+parser.add_argument('--template_context_amount', type=int, help='how much bg for template')
 parser.add_argument('--seed', type=int, default=123456, help='random seed')
 parser.add_argument('--local_rank', type=int, default=0, help='compulsory for pytorch launcer')
 args = parser.parse_args()
@@ -250,6 +250,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         print(f"epoch cls loss: {epoch_cls_loss:<5.6f}")
         print(f"epoch loc loss: {epoch_loc_loss:<5.6f}")
         print(f"epoch total loss: {epoch_total_loss:<5.6f}")
+
         wandb.log({
             "cls loss": epoch_cls_loss,
             "loc loss": epoch_loc_loss,
@@ -374,19 +375,19 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
 
-    constants = {
-        "anchor": cfg.ANCHOR.ANCHOR_NUM,
-        "score_size": cfg.TRAIN.OUTPUT_SIZE,
-        "epochs": args.epoch,
-        "batch_size": args.batch_size,
-        "lr": cfg.TRAIN.BASE_LR,
-        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    }
-    wandb.init(
-        project="siamrpnpp",
-        entity="adrien88",
-        name=f"e{args.epoch}-b{args.batch_size}-{args.template_bg}{args.template_context_amount}",
-        config=constants
-    )
+    # constants = {
+    #     "anchor": cfg.ANCHOR.ANCHOR_NUM,
+    #     "score_size": cfg.TRAIN.OUTPUT_SIZE,
+    #     "epochs": args.epoch,
+    #     "batch_size": args.batch_size,
+    #     "lr": cfg.TRAIN.BASE_LR,
+    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    # }
+    # wandb.init(
+    #     project="siamrpnpp",
+    #     entity="adrien88",
+    #     name=f"e{args.epoch}-b{args.batch_size}-{args.template_bg}{args.template_context_amount}",
+    #     config=constants
+    # )
 
     main()

@@ -65,7 +65,8 @@ class SiamRPNTracker(SiameseTracker):
         anchor_num = anchor.shape[0]
         anchor = np.tile(anchor, score_size * score_size).reshape((-1, 4))      # (5*25*25, 4)
 
-        ori = - (cfg.TRAIN.SEARCH_SIZE // 2)        # 把所有 anchor 以 search image 的中心當作 (0, 0)
+        # ori = - (cfg.TRAIN.SEARCH_SIZE // 2)        # 把所有 anchor 以 search image 的中心當作 (0, 0)
+        ori = 0
         # 生成網格座標
         xx, yy = np.meshgrid([ori + stride * dx for dx in range(score_size)],
                              [ori + stride * dy for dy in range(score_size)])
@@ -158,7 +159,7 @@ class SiamRPNTracker(SiameseTracker):
         """
         self.center_pos = np.array([z_box[0] + (z_box[2] - 1) / 2,
                                     z_box[1] + (z_box[3] - 1) / 2])
-        self.size = np.array([z_box[2], z_box[3]])
+        self.size = np.array([z_box[2], z_box[3]])    # 在做 window penalty 的時候會用到
 
         # calculate z crop size
         # w_z = self.size[0] + cfg.TRACK.CONTEXT_AMOUNT * np.sum(self.size)
@@ -205,8 +206,7 @@ class SiamRPNTracker(SiameseTracker):
     def track(self, image, x_img, scale_ratio):
         """
         Args:
-            x_img(np.ndarray): BGR image
-            search_image: search image that had been preprocessed in dataset
+            x_img(np.ndarray): preprocessed search image
         Return:
             bbox(list): [x, y, width, height]
         """
@@ -217,8 +217,8 @@ class SiamRPNTracker(SiameseTracker):
         # scale_z = cfg.TRACK.EXEMPLAR_SIZE / s_z
         # s_x = s_z * (cfg.TRACK.INSTANCE_SIZE / cfg.TRACK.EXEMPLAR_SIZE)
 
-        # center = (x_img.shape[1]/2,x_img.shape[0]/2)
-        self.center_pos = np.array([image.shape[1] / 2, image.shape[0] / 2])
+        # self.center_pos = np.array([image.shape[1] / 2, image.shape[0] / 2])
+
         # x_img = self.get_subwindow(x_img,
         #                             self.center_pos,
         #                             cfg.TRACK.INSTANCE_SIZE,
@@ -245,7 +245,7 @@ class SiamRPNTracker(SiameseTracker):
 
         ####################################################################
         # 用 box 的長寬比例來篩除 box
-        # 若是比例與原本的 template 差距太大的話，就會被刪掉
+        # 若是比例與原本的 template 差距太大的話，就會被刪掉 (我猜的)
         ####################################################################
         def change(r):
             return np.maximum(r, 1. / r)
@@ -278,10 +278,11 @@ class SiamRPNTracker(SiameseTracker):
         nms_bboxes = self.nms(pred_bboxes, pscore, iou_threshold)
 
         pred_boxes = []
+        search_pred_boxes = []
         top_scores = []
         # TODO: 創一個新的 def block, ex: select_bbox
         for i in range(len(nms_bboxes)):
-            pred_box = pred_bboxes[:, nms_bboxes[i]] / scale_ratio
+            pred_box = pred_bboxes[:, nms_bboxes[i]]
             # pred_box = pred_bboxes[:, nms_bboxes[i]]
             # lr = penalty[nms_bboxes[i]] * scores[nms_bboxes[i]] * cfg.TRACK.LR
             score = scores[nms_bboxes[i]]
@@ -289,8 +290,8 @@ class SiamRPNTracker(SiameseTracker):
             # ipdb.set_trace()
             if score >= 0.5:
                 top_scores.append(score)
-                cx = pred_box[0] + self.center_pos[0]
-                cy = pred_box[1] + self.center_pos[1]
+                cx = pred_box[0] # s+ self.center_pos[0]
+                cy = pred_box[1] # + self.center_pos[1]
                 #cx = pred_box[0]*x_img.shape[1]
                 #cy = pred_box[1]*x_img.shape[0]
                 #print(":",lr)
@@ -313,11 +314,15 @@ class SiamRPNTracker(SiameseTracker):
                             width,
                             height]
                 pred_boxes.append(pred_box)
+
+                pred_box = pred_box / scale_ratio
+                search_pred_boxes.append(pred_box)
             else:
                 continue
 
         return {
             'x_img': x_img.cpu().numpy().squeeze(),
             'pred_boxes': pred_boxes,
+            'search_pred_boxes': search_pred_boxes,
             'top_scores': top_scores
         }

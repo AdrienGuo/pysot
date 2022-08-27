@@ -111,7 +111,7 @@ class PCBDatasetTest():
                                 images.append(item)
                                 template.append([anno[i][1], anno[i][2], anno[i][3], anno[i][4]])
                                 box = []
-                            
+
                             if anno[i][0] != 26:
                                 for j in range(len(anno)):              # 這裡應該可以直接改成用 filter 來做
                                     if anno[j][0] == anno[i][0]:
@@ -154,9 +154,9 @@ class PCBDatasetTest():
                                 box = np.stack(box).astype(np.float32)
                                 search.append(box)
         return images, template, search
-    
+
     def get_image_anno(self, index, arg):
-        """ 
+        """
         Return:
             imgage_path: 
             image_anno: 
@@ -175,7 +175,7 @@ class PCBDatasetTest():
     def get_positive_pair(self, index):
         return self.get_image_anno(index, self.template), \
                self.get_image_anno(index, self.search)
-    
+
     # def get_neg_pair(self, type, index=None):
     #     if type == "template":
     #         return self.get_image_anno(index, "template")
@@ -278,11 +278,11 @@ class PCBDatasetTest():
     def __len__(self):
         return len(self.images)
 
-    def __getitem__(self, index):
+    def __getitem__(self, idx):
         """ batch_size 只能設 1，因為我沒有處理 gt 數量不同的問題
         """
-        # get one dataset
-        template, search = self.get_positive_pair(index)
+        # get the idx dataset
+        template, search = self.get_positive_pair(idx)
 
         ####################################################################
         # Step 1.
@@ -291,6 +291,7 @@ class PCBDatasetTest():
         image_path, template_box = template[0], template[1]
         image_path, search_bbox = search[0], search[1]
 
+        image = cv2.imread(image_path)
         template_image = cv2.imread(image_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(image_path)
 
@@ -301,8 +302,8 @@ class PCBDatasetTest():
         template_image, template_box = self.template_aug(
             template_image,
             template_box,
-            self.template_bg,
-            self.template_context_amount
+            bg=self.template_bg,
+            context_amount=self.template_context_amount
         )
 
         # gt_boxes ((x1, y1, x2, y2), num)
@@ -311,54 +312,73 @@ class PCBDatasetTest():
             search_bbox,
         )
 
-        # # 檢查圖片
-        # template_dir = "./image_check/val/template/"
-        # template_path = os.path.join(template_dir, f"{index}.jpg")
+        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+        ########################
+        # 創 directory
+        ########################
+        # image_name = image_path.split('/')[-1].split('.')[0]
+        # sub_dir = os.path.join("./image_check/test/", image_name)
+        # if not os.path.isdir(sub_dir):
+        #     os.makedirs(sub_dir)
+        #     print(f"create dir: {sub_dir}")
+
+        # # 創 sub_dir/origin，裡面存 origin image
+        # origin_dir = os.path.join(sub_dir, "origin")
+        # if not os.path.isdir(origin_dir):
+        #     os.makedirs(origin_dir)
+        #     print(f"create dir: {origin_dir}")
+        # # 創 sub_dir/search，裡面存 search image
+        # search_dir = os.path.join(sub_dir, "search")
+        # if not os.path.isdir(search_dir):
+        #     os.makedirs(search_dir)
+        #     print(f"create dir: {search_dir}")
+        # # 創 sub_dir/template，裡面存 template image
+        # template_dir = os.path.join(sub_dir, "template")
+        # if not os.path.isdir(template_dir):
+        #     os.makedirs(template_dir)
+        #     print(f"Create dir: {template_dir}")
+
+        # #######################
+        # # 存圖片
+        # #######################
+        # origin_path = os.path.join(origin_dir, f"{idx}.jpg")
+        # save_image(image, origin_path)
+        # print(f"save original image to: {origin_path}")
+
+        # template_path = os.path.join(template_dir, f"{idx}.jpg")
         # save_image(template_image, template_path)
         # print(f"save template image to: {template_path}")
 
-        # search_dir = "./image_check/val/search/"
-        # search_path = os.path.join(search_dir, f"{index}.jpg")
-        # save_image(search_image, search_path)
+        # # draw gt_boxes on search image
+        # search_path = os.path.join(search_dir, f"{idx}.jpg")
+        # tmp_gt_boxes = gt_boxes.copy()
+        # tmp_gt_boxes[2] = tmp_gt_boxes[2] - tmp_gt_boxes[0]
+        # tmp_gt_boxes[3] = tmp_gt_boxes[3] - tmp_gt_boxes[1]
+        # gt_image = draw_box(search_image, np.transpose(tmp_gt_boxes, (1, 0)))
+        # save_image(gt_image, search_path)
         # print(f"save search image to: {search_path}")
-
-        # gt_dir = "./image_check/val/gt/"
-        # gt_path = os.path.join(gt_dir, f"{index}.jpg")
-        # tmp_bbox = bbox.copy()
-        # tmp_bbox[2] = tmp_bbox[2] - tmp_bbox[0]
-        # tmp_bbox[3] = tmp_bbox[3] - tmp_bbox[1]
-        # gt_image = draw_box(search_image, np.transpose(tmp_bbox, (1, 0)))
-        # save_image(gt_image, gt_path)
-        # print(f"save gt image to: {gt_path}")
-
-        # img_h, img_w = search_image.shape[:2]
-        # template_box = center2corner(template[1])
-        # template_x1, template_x2 = img_w * template_box[0], img_w * template_box[2]
-        # template_y1, template_y2 = img_h * template_box[1], img_h * template_box[3]
-        # template_x1y1x2y2 = np.stack((template_x1, template_y1, template_x2, template_y2), axis=0)
-        # print(f"template: {type(template_x1y1x2y2)}")
-        # print(f"image path: {template[0]}")
-        # print(f"template loc: [{template_x1, template_y1, template_x2, template_y2}]")
-        # print(f"search loc: \n{search[1]}")
+        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
 
         # 處理 gt 的格式
-        # gt_boxes = np.asarray(gt_boxes)
-        gt_boxes = Corner(gt_boxes[0], gt_boxes[1], gt_boxes[2], gt_boxes[3])
-        gt_boxes = np.array(gt_boxes)
+        img_h, img_w = image.shape[:2]
         gt_boxes = np.transpose(gt_boxes, (1, 0))   # (4, num) -> (num, 4)
-        gt_boxes = torch.from_numpy(gt_boxes)
+        gt_boxes[:, 2] = (gt_boxes[:, 2] - gt_boxes[:, 0])    # w
+        gt_boxes[:, 3] = (gt_boxes[:, 3] - gt_boxes[:, 1])    # h
 
-        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # (3, 127, 127)
+        # print(f"gt_boxes: {gt_boxes}")
+        # ipdb.set_trace()
+
+        template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # (127, 127, 3) -> (3, 127, 127)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
         return {
-            "image_path":     image_path,
-            'template':       template_box,
+            "image_path": image_path,
+            'template': template_box,    # 畫圖用
             'template_image': template_image,
-            'search_image':   search_image,
-            'cls':            self.images[index][1],
-            'gt_boxes':       gt_boxes,
-            'r':              r
+            'search_image': search_image,
+            'cls': self.images[idx][1],
+            'gt_boxes': gt_boxes,    # 算 precision, recall 需要
+            'r': r
         }
 
         # if DEBUG:
@@ -540,7 +560,7 @@ class PCBDatasetTest():
             "search":         search,
             "r":              r
         }
-    
+
 
 if __name__ == "__main__":
     dataset = PCBDatasetTest()

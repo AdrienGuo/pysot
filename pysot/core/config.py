@@ -40,14 +40,14 @@ __C.TRAIN.ALLOWED_BORDER = 0
 
 
 __C.TRAIN.EXEMPLAR_SIZE = 127
-__C.TRAIN.SEARCH_SIZE = 600
+__C.TRAIN.SEARCH_SIZE = 255
 __C.TRAIN.BASE_SIZE = 8
 
 # 這邊都要手動調整，真的超蠢...
 # 而且因為還會在 neck.py 裏面做裁切，要全部都自動計算又更麻煩了
 # 他們原始的 code 真的是很難用誒
-# __C.TRAIN.OUTPUT_SIZE = 25
-__C.TRAIN.OUTPUT_SIZE = (__C.TRAIN.SEARCH_SIZE - __C.TRAIN.EXEMPLAR_SIZE) // 8 + 1
+__C.TRAIN.OUTPUT_SIZE = 25
+# __C.TRAIN.OUTPUT_SIZE = (__C.TRAIN.SEARCH_SIZE - __C.TRAIN.EXEMPLAR_SIZE) // 8 + 1
 
 __C.TRAIN.RESUME = ''
 
@@ -239,7 +239,7 @@ __C.ANCHOR.RATIOS = [0.33, 0.5, 1, 2, 3]
 __C.ANCHOR.SCALES = [8]
 # Anchor number
 # __C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
-__C.ANCHOR.ANCHOR_NUM = 11
+__C.ANCHOR.ANCHOR_NUM = 5
 
 
 # ------------------------------------------------------------------------ #

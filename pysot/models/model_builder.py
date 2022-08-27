@@ -115,16 +115,16 @@ class ModelBuilder(nn.Module):
         template = data['template_image'].cuda()
         search = data['search_image'].cuda()
         gt_boxes = data['gt_boxes'].cuda()
+        image_name = data['image_name'][0]
+        idx = data['idx'][0]
 
         ####################################################################
         # 計算 label_cls, label_loc
         ####################################################################
-        label_cls, label_loc, label_loc_weight, _ = self.anchor_target(gt_boxes, self.output_size)
+        label_cls, label_loc, label_loc_weight, _ = self.anchor_target(gt_boxes, self.output_size, image_name=image_name, idx=idx)
 
-        print(f"label_cls: {label_cls.shape}")
-        print(f"label_loc: {label_loc.shape}")
-
-        ipdb.set_trace()
+        # print(f"label_cls: {label_cls.shape}")
+        # print(f"label_loc: {label_loc.shape}")
 
         # template_image = template.cpu().numpy()
         # print(f"template: {template_image.shape}")

@@ -1,12 +1,12 @@
 epochs=(200)
-batch_sizes=(32 64)
+batch_sizes=(1)
 
 # 決定 template image 是否要有 bg
 # bg: background
 # nbg: no background
 template_bg="bg"
 # 要加入多少的 bg
-template_context_amount=(0.5)
+template_context_amount=(2)
 
 
 for epoch in ${epochs[@]}; do
@@ -20,6 +20,6 @@ for epoch in ${epochs[@]}; do
             --template_bg ${template_bg} \
             --template_context_amount ${template_context_amount} \
             --cfg ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
-            >> ./training_logs/e${epoch}-b${batch_size}-${template_bg}${template_context_amount}-${time}.log
+            # >> ./training_logs/e${epoch}-b${batch_size}-${template_bg}${template_context_amount}-${time}.log
     done
 done

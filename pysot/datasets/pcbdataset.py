@@ -166,33 +166,33 @@ class PCBDataset():
         max_num_boxes = max(num_boxes)
         return max_num_boxes
     
-    def get_image_anno(self, index, arg):
+    def get_image_anno(self, idx, arg):
         """ 
         Return:
             imgage_path: 
             image_anno: 
         """
-        image_path, template_cls = self.images[index]
+        image_path, template_cls = self.images[idx]
         # print(f"type: {type(arg)}, {type(arg)}")
-        image_anno = arg[index]
+        image_anno = arg[idx]
         # if type=="template":
-        #     image_anno = self.template[index]
+        #     image_anno = self.template[idx]
         # elif type=="search":
-        #     image_anno = self.search[index]
+        #     image_anno = self.search[idx]
         # print(f"image_anno: {image_anno}")
         # image_anno = np.stack(image_anno).astype(np.float32)        # 這要幹嘛? 回傳的image_anno不是只有一個物件嗎?
         return image_path, image_anno
 
-    def get_positive_pair(self, index):
-        return self.get_image_anno(index, self.template), \
-               self.get_image_anno(index, self.search)
+    def get_positive_pair(self, idx):
+        return self.get_image_anno(idx, self.template), \
+               self.get_image_anno(idx, self.search)
     
-    def get_neg_pair(self, type, index=None):
+    def get_neg_pair(self, type, idx=None):
         if type == "template":
-            return self.get_image_anno(index, self.template)
+            return self.get_image_anno(idx, self.template)
         elif type == "search":
-            index = np.random.randint(low=0, high=len(self.images))
-            return self.get_image_anno(index, self.search)
+            idx = np.random.randint(low=0, high=len(self.images))
+            return self.get_image_anno(idx, self.search)
 
     # def _get_bbox(self, image, shape, type):
     #     """
@@ -289,12 +289,12 @@ class PCBDataset():
     def __len__(self):
         return len(self.images)
 
-    def __getitem__(self, index):
+    def __getitem__(self, idx):
         logger.debug("__getitem__")
 
         # 就只是隨機 gray 而已 (在 augmentation 才會用到，那為甚麼不要在 .xxx_aug() 在做就好啊...)
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
-        
+
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
         neg = cfg.DATASET.NEG and cfg.DATASET.NEG > np.random.random()
 
@@ -302,18 +302,21 @@ class PCBDataset():
         # 這個 if 還需要修改成 template 和 search "一定" 不會互相對應到同一張圖片的
         neg = False
         if neg:
-            template = self.get_neg_pair("template", index)
+            template = self.get_neg_pair("template", idx)
             search = self.get_neg_pair("search")
         else:
-            template, search = self.get_positive_pair(index)
+            template, search = self.get_positive_pair(idx)
 
         ####################################################################
         # Step 1.
         # get template and search images (raw data)
         ####################################################################
-        # print(f"load image from: {template[0]}")
-        template_image = cv2.imread(template[0])        # cv2 讀進來的檔案是 BGR (一般是 RGB)
-        search_image = cv2.imread(search[0])
+        image_path = template[0]
+        image_name = image_path.split('/')[-1].split('.')[0]
+        # print(f"load image from: {image_path}")
+        image = cv2.imread(image_path)
+        template_image = cv2.imread(image_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
+        search_image = cv2.imread(image_path)
 
         # image_h, image_w = search_image.shape[:2]
         # template_box = center2corner(template[1])
@@ -357,27 +360,52 @@ class PCBDataset():
             search_boxes
         )
 
-        # # 檢查圖片
-        # template_dir = "./image_check/train/template/"
-        # template_path = os.path.join(template_dir, f"{index}.jpg")
+        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+        ########################
+        # 創 directory
+        ########################
+        # image_name = image_path.split('/')[-1].split('.')[0]
+        # sub_dir = os.path.join("./image_check/train/", image_name)
+        # if not os.path.isdir(sub_dir):
+        #     os.makedirs(sub_dir)
+        #     print(f"create dir: {sub_dir}")
+
+        # # 創 sub_dir/origin，裡面存 origin image
+        # origin_dir = os.path.join(sub_dir, "origin")
+        # if not os.path.isdir(origin_dir):
+        #     os.makedirs(origin_dir)
+        #     print(f"create dir: {origin_dir}")
+        # # 創 sub_dir/search，裡面存 search image
+        # search_dir = os.path.join(sub_dir, "search")
+        # if not os.path.isdir(search_dir):
+        #     os.makedirs(search_dir)
+        #     print(f"create dir: {search_dir}")
+        # # 創 sub_dir/template，裡面存 template image
+        # template_dir = os.path.join(sub_dir, "template")
+        # if not os.path.isdir(template_dir):
+        #     os.makedirs(template_dir)
+        #     print(f"Create dir: {template_dir}")
+
+        ########################
+        # 存圖片
+        ########################
+        # origin_path = os.path.join(origin_dir, f"{idx}.jpg")
+        # save_image(image, origin_path)
+        # print(f"save original image to: {origin_path}")
+
+        # template_path = os.path.join(template_dir, f"{idx}.jpg")
         # save_image(template_image, template_path)
         # print(f"save template image to: {template_path}")
 
-        # search_dir = "./image_check/train/search/"
-        # search_path = os.path.join(search_dir, f"{index}.jpg")
-        # save_image(search_image, search_path)
-        # print(f"save search image to: {search_path}")
-
-        # gt_dir = "./image_check/train/gt/"
-        # gt_path = os.path.join(gt_dir, f"{index}.jpg")
+        # # draw gt_boxes on search image
+        # search_path = os.path.join(search_dir, f"{idx}.jpg")
         # tmp_gt_boxes = gt_boxes.copy()
         # tmp_gt_boxes[2] = tmp_gt_boxes[2] - tmp_gt_boxes[0]
         # tmp_gt_boxes[3] = tmp_gt_boxes[3] - tmp_gt_boxes[1]
         # gt_image = draw_box(search_image, np.transpose(tmp_gt_boxes, (1, 0)))
-        # save_image(gt_image, gt_path)
-        # print(f"save gt image to: {gt_path}")
-
-        # ipdb.set_trace()
+        # save_image(gt_image, search_path)
+        # print(f"save search image to: {search_path}")
+        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
 
         ####################################################################
         # Step 3.
@@ -461,13 +489,15 @@ class PCBDataset():
         gt_boxes = np.transpose(gt_boxes, (1, 0))   # (4, num) -> (num, 4)
         gt_boxes = torch.from_numpy(gt_boxes)
 
-        # 為了要解決 gt_boxes 數量不一致的問題
         # check the bounding box (這照理來說也不應該發生吧...):
         not_keep = (gt_boxes[:, 0] == gt_boxes[:, 2]) | (gt_boxes[:, 1] == gt_boxes[:, 3])
         keep = torch.nonzero(not_keep == 0).view(-1)
 
+        # 為了要解決 gt_boxes 數量不一致的問題
+        # padding 成數量最多的那個 gt_boxes 的數量
         gt_boxes_padding = torch.FloatTensor(self.max_num_box, gt_boxes.size(1)).zero_()
 
+        # 確定這裡的 gt_boxes_padding 沒問題 (08/27/2022)
         if keep.numel() != 0:
             gt_boxes = gt_boxes[keep]
             num_boxes = min(gt_boxes.size(0), self.max_num_box)
@@ -487,9 +517,9 @@ class PCBDataset():
         # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
 
         # cls, delta, delta_weight, overlap = self.anchor_target(
-        #     bbox, cfg.TRAIN.OUTPUT_SIZE, neg, index)
+        #     bbox, cfg.TRAIN.OUTPUT_SIZE, neg, idx)
 
-        # (127, 127, 3) -> (3, 127, 127)
+        # (127, 127, 3) -> (3, 127, 127) for CNN using
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
@@ -500,7 +530,10 @@ class PCBDataset():
             # 'label_loc': delta,
             # 'label_loc_weight': delta_weight,
             'gt_boxes': gt_boxes_padding,
-            'num_boxes': num_boxes
+            'num_boxes': num_boxes,
+            # 下面是檢查 anchor 的時候，要存檔用的
+            'image_name': image_name,
+            'idx': idx
         }
 
     def collate_fn(self, batch):

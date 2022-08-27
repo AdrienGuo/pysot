@@ -18,11 +18,10 @@ model="k${kmeans}_r${resolution}_e${epochs}_b${batch}_${template_bg}${template_c
 dataset="val"
 save_dir="./results/${dataset}"
 
-python3 ./tools/test_pcb.py \
+python3 ./tools/eval_pcb.py \
     --model ${model_dir}/${model}.pth \
 	--template_bg ${template_bg} \
 	--template_context_amount ${template_context_amount} \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
 	--dataset ./testing_dataset/PCB/${dataset}/ \
 	--annotation ./testing_dataset/PCB/${dataset}/ \
-	--save_dir ${save_dir}
