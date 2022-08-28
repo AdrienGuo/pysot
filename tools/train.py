@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import Subset
 
 from pysot.utils.lr_scheduler import build_lr_scheduler
 from pysot.utils.log_helper import init_log, print_speed, add_file_handler
@@ -60,14 +61,22 @@ def seed_torch(seed=0):
     torch.backends.cudnn.deterministic = True
 
 
-def build_data_loader():
+def build_data_loader(validation_split):
     logger.info("build train dataset")
-    train_dataset = PCBDataset(args)
+    dataset = PCBDataset(args)
     logger.info("build dataset done")
 
-    train_sampler = None
-    if get_world_size() > 1:
-        train_sampler = DistributedSampler(train_dataset)
+    # split train & val dataset
+    dataset_size = len(dataset)
+    split = dataset_size - int(np.floor(validation_split * dataset_size))
+    indices = list(range(dataset_size))
+    train_indices, val_indices = indices[:split], indices[split:]
+    train_dataset = Subset(dataset, train_indices)
+    val_dataset = Subset(dataset, val_indices)
+
+    # train_sampler = None
+    # if get_world_size() > 1:
+    #     train_sampler = DistributedSampler(dataset)
 
     train_loader = DataLoader(
         train_dataset,
@@ -77,7 +86,15 @@ def build_data_loader():
         pin_memory=True,
         # sampler=train_sampler
     )
-    return train_loader
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=args.batch_size,
+        num_workers=cfg.TRAIN.NUM_WORKERS,
+        pin_memory=True,
+    )
+
+    return train_loader, val_loader
 
 
 def build_opt_lr(model, current_epoch=0):
@@ -162,7 +179,7 @@ def log_grads(model, tb_writer, tb_index):
     tb_writer.add_scalar('grad/rpn', rpn_norm, tb_index)
 
 
-def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
+def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
     cur_lr = lr_scheduler.get_cur_lr()
     rank = get_rank()
 
@@ -190,18 +207,20 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
         epoch = epoch + 1
         print(f"epoch: {epoch}")
         logger.info('epoch: {}'.format(epoch))
-        # train backbone, 但他只會在 epoch=10 的時候訓練一次就沒了??
+        # start training backbone at epoch=10, 他是把 backbone model 的 params 變成 requires_grad=True
         if cfg.BACKBONE.TRAIN_EPOCH == epoch:
             logger.info('start training backbone.')
             optimizer, lr_scheduler = build_opt_lr(model.module, epoch)
         cur_lr = lr_scheduler.get_cur_lr()
 
-        epoch_cls_loss = 0
-        epoch_loc_loss = 0
-        epoch_total_loss = 0
-
+        train_loss = dict(cls=0, loc=0, total=0)
+        val_loss = dict(cls=0, loc=0, total=0)
         epoch_start = time.time()
 
+        ####################################################################
+        # Training
+        ####################################################################
+        model.train()
         for idx, data in enumerate(train_loader):
             tb_idx = idx
             # if idx % num_per_epoch == 0 and idx != 0:
@@ -223,9 +242,9 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
             batch_total_loss = outputs['total_loss']
             print(f"cls_loss: {batch_cls_loss:<6.3f} | loc_loss: {batch_loc_loss:<6.3f} | total_loss: {batch_total_loss:<6.3f}")
 
-            epoch_cls_loss += batch_cls_loss
-            epoch_loc_loss += batch_loc_loss
-            epoch_total_loss += batch_total_loss
+            train_loss['cls'] += batch_cls_loss
+            train_loss['loc'] += batch_loc_loss
+            train_loss['total'] += batch_total_loss
 
             if is_valid_number(batch_total_loss.data.item()):
                 optimizer.zero_grad()
@@ -244,18 +263,43 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
 
         lr_scheduler.step()
 
-        epoch_cls_loss = epoch_cls_loss / len(train_loader)
-        epoch_loc_loss = epoch_loc_loss / len(train_loader)
-        epoch_total_loss = epoch_total_loss / len(train_loader)
-        print(f"epoch cls loss: {epoch_cls_loss:<5.6f}")
-        print(f"epoch loc loss: {epoch_loc_loss:<5.6f}")
-        print(f"epoch total loss: {epoch_total_loss:<5.6f}")
+        train_loss['cls'] = train_loss['cls'] / len(train_loader)
+        train_loss['loc'] = train_loss['loc'] / len(train_loader)
+        train_loss['total'] = train_loss['total'] / len(train_loader)
+        print("Train")
+        print(f"cls_loss: {train_loss['cls']:<6.3f} | loc_loss: {train_loss['loc']:<6.3f} | total_loss: {train_loss['total']:<6.3f}")
 
-        wandb.log({
-            "cls loss": epoch_cls_loss,
-            "loc loss": epoch_loc_loss,
-            "total loss": epoch_total_loss
-        })
+        # wandb.log({
+        #     "train_cls_loss": train_loss['cls'],
+        #     "train_loc_loss": train_loss['loc'],
+        #     "train_total_loss": train_loss['total']
+        # })
+
+        ####################################################################
+        # Validating
+        ####################################################################
+        model.eval()
+        for idx, data in enumerate(val_loader):
+            outputs = model(data)
+
+            batch_cls_loss = outputs['cls_loss']
+            batch_loc_loss = outputs['loc_loss']
+            batch_total_loss = outputs['total_loss']
+            val_loss['cls'] += batch_cls_loss
+            val_loss['loc'] += batch_loc_loss
+            val_loss['total'] += batch_total_loss
+
+        val_loss['cls'] = val_loss['cls'] / len(val_loader)
+        val_loss['loc'] = val_loss['loc'] / len(val_loader)
+        val_loss['total'] = val_loss['total'] / len(val_loader)
+        print("Validation")
+        print(f"cls_loss: {val_loss['cls']:<6.3f} | loc_loss: {val_loss['loc']:<6.3f} | total_loss: {val_loss['total']:<6.3f}")
+
+        # wandb.log({
+        #     "val_cls_loss": val_loss['cls'],
+        #     "val_loc_loss": val_loss['loc'],
+        #     "val_total_loss": val_loss['total']
+        # })
 
         batch_time = time.time() - end
         batch_info = {}
@@ -285,6 +329,7 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                             average_meter.batch_time.avg,
                             args.epoch * num_per_epoch)
 
+        # save model
         if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
             # save model directory
             save_model_dir = os.path.join(
@@ -300,7 +345,6 @@ def train(train_loader, model, optimizer, lr_scheduler, tb_writer):
                 save_model_dir,
                 f"model_e{epoch}.pth"
             )
-
             torch.save(
                 {
                     'epoch': epoch,
@@ -331,8 +375,11 @@ def main():
         logger.info("Version Information: \n{}\n".format(commit()))
         # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
 
+    # build dataset loader
+    train_loader, val_loader = build_data_loader(cfg.DATASET.VALIDATION_SPLIT)
+
     # create model
-    model = ModelBuilder().cuda().train()
+    model = ModelBuilder().cuda()
 
     # load pretrained backbone weights
     if cfg.BACKBONE.PRETRAINED:
@@ -345,9 +392,6 @@ def main():
         tb_writer = SummaryWriter(cfg.TRAIN.LOG_DIR)
     else:
         tb_writer = None
-
-    # build dataset loader
-    train_loader = build_data_loader()
 
     # build optimizer and lr_scheduler
     optimizer, lr_scheduler = build_opt_lr(model,
@@ -369,7 +413,7 @@ def main():
     logger.info("model prepare done")
 
     # start training
-    train(train_loader, dist_model, optimizer, lr_scheduler, tb_writer)
+    train(train_loader, val_loader, dist_model, optimizer, lr_scheduler, tb_writer)
 
 
 if __name__ == '__main__':

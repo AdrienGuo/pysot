@@ -335,7 +335,7 @@ class PCBDataset():
         ####################################################################
         # Step 2.
         # process the template and search images
-        # 
+        # -------------------------------------------------------
         # === 定義代號 ===
         # z: template
         # x: search
@@ -347,7 +347,7 @@ class PCBDataset():
         # template_bbox_corner = center2corner(template_box)
         # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
 
-        template_image, _ = self.template_aug(
+        template_image, _, _ = self.template_aug(
             template_image,
             template_box,
             bg=self.template_bg,

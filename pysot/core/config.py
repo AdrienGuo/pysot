@@ -38,7 +38,6 @@ __C.TRAIN.TOTAL_NUM = 64
 # The edge allow anchors to sit over the image
 __C.TRAIN.ALLOWED_BORDER = 0
 
-
 __C.TRAIN.EXEMPLAR_SIZE = 127
 __C.TRAIN.SEARCH_SIZE = 255
 __C.TRAIN.BASE_SIZE = 8
@@ -56,7 +55,7 @@ __C.TRAIN.PRETRAINED = "./experiments/siamrpn_r50_l234_dwxcorr/model.pth"
 
 __C.TRAIN.LOG_DIR = './logs'
 __C.TRAIN.MODEL_DIR = './save_models'
-__C.TRAIN.NUM_WORKERS = 0
+__C.TRAIN.NUM_WORKERS = 8
 __C.TRAIN.SAVE_MODEL_FREQ = 20
 
 __C.TRAIN.START_EPOCH = 0
@@ -97,6 +96,9 @@ __C.TRAIN.LR_WARMUP.KWARGS = CN(new_allowed=True)
 # Dataset options
 # ------------------------------------------------------------------------ #
 __C.DATASET = CN(new_allowed=True)
+
+# validation_split
+__C.DATASET.VALIDATION_SPLIT = 0.1
 
 # Augmentation
 # for template

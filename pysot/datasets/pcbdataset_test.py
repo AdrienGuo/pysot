@@ -299,7 +299,7 @@ class PCBDatasetTest():
         # Step 2.
         # process the template and search images
         ####################################################################
-        template_image, template_box = self.template_aug(
+        template_image, template_box, origin_template_box = self.template_aug(
             template_image,
             template_box,
             bg=self.template_bg,
@@ -307,7 +307,7 @@ class PCBDatasetTest():
         )
 
         # gt_boxes ((x1, y1, x2, y2), num)
-        search_image, gt_boxes, r = self.search_aug(
+        search_image, gt_boxes, r, spatium = self.search_aug(
             search_image,
             search_bbox,
         )
@@ -373,12 +373,14 @@ class PCBDatasetTest():
 
         return {
             "image_path": image_path,
-            'template': template_box,    # 畫圖用
+            'template_box': template_box,    # 畫圖用
+            'origin_template_box': origin_template_box,    # 畫圖用
             'template_image': template_image,
             'search_image': search_image,
             'cls': self.images[idx][1],
             'gt_boxes': gt_boxes,    # 算 precision, recall 需要
-            'r': r
+            'r': r,
+            'spatium': spatium
         }
 
         # if DEBUG:

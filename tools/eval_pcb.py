@@ -40,43 +40,45 @@ torch.set_num_threads(1)
 def calculate_metrics(pred_scores, pred_boxes, label_boxes):
     """
     Args:
-        pred_boxes: (data_num, pred_num, 4)
-        label_boxes: (data_num, label_num, 4)
+        pred_boxes: (data_num, pred_num, 4) #list
+        label_boxes: (data_num, label_num, 4) #list
     """
     assert len(pred_scores) == len(pred_boxes), "length of pred_scores and pred_boxes should be the same"
     assert len(pred_boxes) == len(label_boxes), "length of pred_boxes and label_boxes should be the same"
 
-    tp_total = list()
-    fp_total = list()
-    total_boxes_num = 0
+    tp = list()
+    fp = list()
+    boxes_num = list()
 
     lens = len(pred_scores)
     for idx in range(lens):
-        tp = torch.zeros(len(pred_boxes[idx]))
-        fp = torch.zeros(len(pred_boxes[idx]))
-        label_boxes_num = len(label_boxes[idx])
+        # 一個 data
+        tp_one = torch.zeros(len(pred_boxes[idx]))
+        fp_one = torch.zeros(len(pred_boxes[idx]))
+        boxes_one_num = len(label_boxes[idx])
         for pred_idx in range(len(pred_boxes[idx])):
             best_iou = 0
             for label_idx in range(len(label_boxes[idx])):
                 iou = overlap_ratio_one(pred_boxes[idx][pred_idx], label_boxes[idx][label_idx])
                 if iou > best_iou:
                     best_iou = iou
+            # 所有我預測的 pred_boxes，他們都已經是 positive 了；而且不是 true (tp) 就是 false (fp)
             if best_iou >= 0.5:
-                tp[pred_idx] = 1
+                tp_one[pred_idx] = 1
             else:
-                fp[pred_idx] = 1
+                fp_one[pred_idx] = 1
 
-        tp_sum = sum(tp)
-        fp_sum = sum(fp)
+        tp_one_sum = sum(tp_one)
+        fp_one_sum = sum(fp_one)
 
-        tp_total.append(tp_sum)
-        fp_total.append(fp_sum)
-        total_boxes_num = total_boxes_num + label_boxes_num
+        tp.append(tp_one_sum)
+        fp.append(fp_one_sum)
+        boxes_num.append(boxes_one_num)
 
-    recall = sum(tp_total) / total_boxes_num
-    precision = sum(tp_total) / (sum(tp_total) + sum(fp_total))
-    print(f"recall: {recall}")
-    print(f"precision: {precision}")
+    precision = sum(tp) / (sum(tp) + sum(fp))
+    recall = sum(tp) / sum(boxes_num)
+
+    return precision, recall
 
 
 def evaluate(test_loader, tracker):
@@ -95,7 +97,6 @@ def evaluate(test_loader, tracker):
             gt_boxes = data['gt_boxes'].cuda()    # 用在算 precision, recall
             scale_ratio = data['r'][0].cpu().numpy()
             # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
-            # search = [torch.from_numpy(search).cuda() for search in data['search']]
 
             print(f"load image from: {image_path}")
             image = cv2.imread(image_path)
@@ -113,7 +114,6 @@ def evaluate(test_loader, tracker):
                 template_box[3] - template_box[1]
             ]
             template_box = np.around(template_box, decimals=2)
-            # pred_boxes.append(template_box)
 
             ####################################################################
             # init tracker
@@ -131,10 +131,12 @@ def evaluate(test_loader, tracker):
 
             pred_scores.append(outputs['top_scores'])
             pred_boxes.append(outputs['pred_boxes'])
-            label_boxes.append(gt_boxes[0].cpu().tolist())    # gt_boxes[0] 不要 batch
+            label_boxes.append(gt_boxes[0].cpu().tolist())    # gt_boxes[0], 不要 batch
 
             # calculate_metrics([outputs['top_scores']], [outputs['pred_boxes']], [gt_boxes[0].cpu().tolist()])
-        calculate_metrics(pred_scores, pred_boxes, label_boxes)
+        precision, recall = calculate_metrics(pred_scores, pred_boxes, label_boxes)
+        print(f"precision: {precision}")
+        print(f"recall: {recall}")
 
 
 if __name__ == "__main__":
@@ -152,10 +154,6 @@ if __name__ == "__main__":
 
     # build tracker
     tracker = build_tracker(model)
-
-    # dir = os.path.join(args.save_dir, model_name)
-    # if not os.path.isdir(dir):
-    #     os.makedirs(dir)
 
     evaluate(test_loader, tracker)
 

@@ -135,6 +135,7 @@ class Augmentation:
         box = Corner(*center2corner(box))     # 超剛好前幾天才問啟恩這個用法，感謝啟恩
         box = Corner(img_w * box.x1, img_h * box.y1,
                      img_w * box.x2, img_h * box.y2)
+        origin_box = box    # 在 original image 上的 box
         box = np.array(box)
         box = box[:, np.newaxis]    # box: (4, n=1)
         # 做 template box 的縮放&平移
@@ -201,6 +202,7 @@ class Augmentation:
         #               img_w * box.x2, img_h * box.y2)
         # 上面已經處理過 box 了
         box = np.array(box)     # corner -> array (??)
+        origin_box = np.array(origin_box)
         # if img_w >= img_h:
         #     r = self.search_size / img_w
         # else:
@@ -228,11 +230,12 @@ class Augmentation:
         # box = np.concatenate(box, axis=0)         # ((1, 2), (x, y), n) -> ((x1, y1, x2, y2), n)
         # box = box.squeeze()
 
-        return template_image, box
+        return template_image, box, origin_box
 
     def _search_crop(self, image, bbox, padding=(0, 0, 0)):
         search_image = image
         search_h, search_w = search_image.shape[:2]
+
         # === 處理 search image ===
         # 原理上跟 template 在做一樣的事
         if search_w >= search_h:
@@ -271,7 +274,10 @@ class Augmentation:
         bbox = bbox[:, :, :-1]
         bbox = np.transpose(bbox, (1, 2, 0))
         bbox = np.concatenate(bbox, axis=0)         # ((1, 2), (x, y), n) -> ((x1, y1, x2, y2), n)
-        return search_image, bbox, r
+
+        spatium = (x, y)    # 為了要將之後的 pred box 轉成 origin image 的位置
+
+        return search_image, bbox, r, spatium
 
     def __call__(self, image, bbox, bg=None, context_amount=None):
         """
@@ -280,10 +286,10 @@ class Augmentation:
             boxes: gt boxes
         """
         if self.type == "template":
-            template_image, box = self._template_crop(image, bbox, bg, context_amount)
+            template_image, box, origin_box = self._template_crop(image, bbox, bg, context_amount)
             # 這個 box 只有在 testing 畫圖的時候會用
-            return template_image, box
+            return template_image, box, origin_box
 
         if self.type == "search":
-            search_image, boxes, r = self._search_crop(image, bbox)
-            return search_image, boxes, r
+            search_image, boxes, r, spatium = self._search_crop(image, bbox)
+            return search_image, boxes, r, spatium

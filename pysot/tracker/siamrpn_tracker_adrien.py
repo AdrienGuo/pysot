@@ -5,11 +5,12 @@ from __future__ import (absolute_import, division, print_function,
 
 import cv2
 import ipdb
+import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from PIL import Image
+# from PIL import Image
 from pysot.core.config import cfg
 from pysot.tracker.base_tracker import SiameseTracker
 # from pysot.utils.anchor import Anchors
@@ -17,6 +18,44 @@ from pysot.rpn.anchor import Anchors
 from torchvision import transforms
 
 from .transform_amy import get_transforms
+
+
+def search2origin(box, r, s):
+    """ 這裡要很小心的是，一定要"先做平移"，才能"再做縮放"
+        因為原本 cv2 的乘法順序會是：縮放 -> 平移
+        我現在要還原回去，所以是：平移 -> 縮放
+    """
+    r = 1 / r
+    x = -s[0]
+    y = -s[1]
+
+    box = np.array(box)
+    box = box[:, np.newaxis]    # box: (4, n=1)
+    # 做 template box 的縮放&平移
+    # [[x1, y1, 1]      [[r, 0, 0]
+    #  [x2, y2, 1]]  *   [0, r, 0]
+    #                    [x, y, 1]]
+    # TODO: 把後面的那個 0, 0, 1 拿掉，我用不到
+    ones = np.ones(box.shape[1])
+    box = np.array([[box[0], box[1], ones],
+                    [box[2], box[3], ones]]).astype(np.float)
+    box = np.transpose(box, (2, 0, 1))
+    # 平移
+    ratio = np.array([[1, 0, 0],
+                      [0, 1, 0],
+                      [x, y, 1]]).astype(np.float)
+    box = np.dot(box, ratio)
+    # 縮放
+    ratio = np.array([[r, 0, 0],
+                      [0, r, 0],
+                      [0, 0, 1]]).astype(np.float)
+    box = np.dot(box, ratio)
+    box = box[:, :, :-1]
+    box = np.transpose(box, (1, 2, 0))
+    box = np.concatenate(box, axis=0)         # ((1, 2), (x, y), n) -> ((x1, y1, x2, y2), n)
+    box = box.squeeze()
+
+    return box
 
 
 class SiamRPNTracker(SiameseTracker):
@@ -203,10 +242,13 @@ class SiamRPNTracker(SiameseTracker):
 
         return z_img.cpu().numpy().squeeze()
 
-    def track(self, image, x_img, scale_ratio):
+    def track(self, image, x_img, scale_ratio, spatium):
         """
         Args:
-            x_img(np.ndarray): preprocessed search image
+            image: original image
+            x_img (np.ndarray): preprocessed search image
+            scale_ratio (r): ratio of (image -> x_img)
+            spatium (x, y): displacement of (image -> x_img)
         Return:
             bbox(list): [x, y, width, height]
         """
@@ -278,7 +320,7 @@ class SiamRPNTracker(SiameseTracker):
         nms_bboxes = self.nms(pred_bboxes, pscore, iou_threshold)
 
         pred_boxes = []
-        search_pred_boxes = []
+        origin_pred_boxes = []
         top_scores = []
         # TODO: 創一個新的 def block, ex: select_bbox
         for i in range(len(nms_bboxes)):
@@ -286,8 +328,6 @@ class SiamRPNTracker(SiameseTracker):
             # pred_box = pred_bboxes[:, nms_bboxes[i]]
             # lr = penalty[nms_bboxes[i]] * scores[nms_bboxes[i]] * cfg.TRACK.LR
             score = scores[nms_bboxes[i]]
-            # print(f"score: {score}")
-            # ipdb.set_trace()
             if score >= 0.5:
                 top_scores.append(score)
                 cx = pred_box[0] # s+ self.center_pos[0]
@@ -309,20 +349,29 @@ class SiamRPNTracker(SiameseTracker):
                 # ipdb.set_trace()
                 # cx, cy, width, height = self._bbox_clip(cx, cy, width, height, x_img.shape[:2])
 
+                # === pred_box on "search" image
                 pred_box = [cx - width / 2,
                             cy - height / 2,
                             width,
                             height]
                 pred_boxes.append(pred_box)
 
-                pred_box = pred_box / scale_ratio
-                search_pred_boxes.append(pred_box)
+                # === pred_box on "original" image
+                origin_pred_box = copy.deepcopy(pred_box)
+                origin_pred_box[2] = origin_pred_box[0] + origin_pred_box[2]    # w -> x2
+                origin_pred_box[3] = origin_pred_box[1] + origin_pred_box[3]    # h -> y2
+                origin_pred_box = search2origin(origin_pred_box, scale_ratio, spatium)    # origin_pred_box (x1, y1, x2, y2)
+                origin_pred_box = [origin_pred_box[0],
+                                   origin_pred_box[1],
+                                   origin_pred_box[2] - origin_pred_box[0],
+                                   origin_pred_box[3] - origin_pred_box[1]]
+                origin_pred_boxes.append(origin_pred_box)
             else:
                 continue
 
         return {
             'x_img': x_img.cpu().numpy().squeeze(),
             'pred_boxes': pred_boxes,
-            'search_pred_boxes': search_pred_boxes,
+            'origin_pred_boxes': origin_pred_boxes,
             'top_scores': top_scores
         }

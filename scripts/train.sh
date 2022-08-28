@@ -1,5 +1,5 @@
 epochs=(200)
-batch_sizes=(1)
+batch_sizes=(32)
 
 # 決定 template image 是否要有 bg
 # bg: background

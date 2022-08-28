@@ -14,12 +14,13 @@ template_context_amount=(2)
 
 
 model_dir="./save_models"
-model="k${kmeans}_r${resolution}_e${epochs}_b${batch}_${template_bg}${template_context_amount}/model_e${epoch_num}"
+# model="k${kmeans}_r${resolution}_e${epochs}_b${batch}_${template_bg}${template_context_amount}/model_e${epoch_num}.pth"
+model="siamrpn_r50_l234_dwxcorr/model.pth"    # 官方權重檔
 dataset="val"
 save_dir="./results/${dataset}"
 
 python3 ./tools/eval_pcb.py \
-    --model ${model_dir}/${model}.pth \
+    --model ${model_dir}/${model} \
 	--template_bg ${template_bg} \
 	--template_context_amount ${template_context_amount} \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
