@@ -7,6 +7,7 @@ import os
 
 import cv2
 import ipdb
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 from toolkit.utils.statistics import overlap_ratio_one
@@ -88,14 +89,18 @@ def evaluate(test_loader, tracker):
     label_boxes = list()
     label_classes = list
 
+    clocks = 0
+    period = 0
+
     with torch.no_grad():
         for idx, data in enumerate(test_loader):
             image_path = data['image_path'][0]
-            template = data['template'][0]
+            template = data['template_box'][0]
             template_image = data['template_image'].cuda()
             search_image = data['search_image'].cuda()
             gt_boxes = data['gt_boxes'].cuda()    # 用在算 precision, recall
             scale_ratio = data['r'][0].cpu().numpy()
+            spatium = [x.cpu().item() for x in data['spatium']]
             # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
 
             print(f"load image from: {image_path}")
@@ -119,6 +124,9 @@ def evaluate(test_loader, tracker):
             # init tracker
             # save template image to ./results/images/{image_name}/template/{idx}.jpg
             ####################################################################
+            # tic = cv2.getTickCount()
+            start = time.time()
+
             # 用 template image 將 tracker 初始化
             # z_crop = tracker.init(image, gt_box)
             _ = tracker.init(template_image, template_box)
@@ -127,7 +135,13 @@ def evaluate(test_loader, tracker):
             # tracking
             ####################################################################
             # 用 search image 進行 "track" 的動作
-            outputs = tracker.track(image, search_image, scale_ratio)
+            outputs = tracker.track(image, search_image, scale_ratio, spatium)
+
+            # toc = cv2.getTickCount()
+            # clocks += toc - tic    # 總共有多少個 clocks (clock cycles)
+
+            end = time.time()
+            period += end - start
 
             pred_scores.append(outputs['top_scores'])
             pred_boxes.append(outputs['pred_boxes'])
@@ -135,8 +149,12 @@ def evaluate(test_loader, tracker):
 
             # calculate_metrics([outputs['top_scores']], [outputs['pred_boxes']], [gt_boxes[0].cpu().tolist()])
         precision, recall = calculate_metrics(pred_scores, pred_boxes, label_boxes)
-        print(f"precision: {precision}")
-        print(f"recall: {recall}")
+        print(f"precision: {precision * 100}")
+        print(f"recall: {recall * 100}")
+
+        # period = clocks / cv2.getTickFrequency()
+        fps = idx / period
+        print(f"Speed: {fps} fps")
 
 
 if __name__ == "__main__":

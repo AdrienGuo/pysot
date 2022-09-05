@@ -32,6 +32,9 @@ def draw_box(image, boxes, type=None, scores=None):
     elif type == "pred":
         color = (0, 255, 0)     # green
         thickness = 2
+    elif type == "gt":
+        color = (255, 0, 0)    # blue
+        thickness = 3
     else:
         color = (0, 255, 0)     # green
         thickness = 1

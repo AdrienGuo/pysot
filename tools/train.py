@@ -61,15 +61,17 @@ def seed_torch(seed=0):
     torch.backends.cudnn.deterministic = True
 
 
-def build_data_loader(validation_split):
+def build_data_loader(validation_split, random_seed):
     logger.info("build train dataset")
     dataset = PCBDataset(args)
     logger.info("build dataset done")
 
     # split train & val dataset
     dataset_size = len(dataset)
-    split = dataset_size - int(np.floor(validation_split * dataset_size))
     indices = list(range(dataset_size))
+    random.seed(random_seed)
+    random.shuffle(indices)
+    split = dataset_size - int(np.floor(validation_split * dataset_size))
     train_indices, val_indices = indices[:split], indices[split:]
     train_dataset = Subset(dataset, train_indices)
     val_dataset = Subset(dataset, val_indices)
@@ -81,7 +83,6 @@ def build_data_loader(validation_split):
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        # collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
         num_workers=cfg.TRAIN.NUM_WORKERS,
         pin_memory=True,
         # sampler=train_sampler
@@ -202,8 +203,8 @@ def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
     # logger.info("model\n{}".format(describe(model.module)))
     end = time.time()
 
-    # 改成訓練多個 epoch (原版只訓練一個 epoch)
     for epoch in range(args.epoch):
+        # one epoch
         epoch = epoch + 1
         print(f"epoch: {epoch}")
         logger.info('epoch: {}'.format(epoch))
@@ -222,6 +223,7 @@ def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
         ####################################################################
         model.train()
         for idx, data in enumerate(train_loader):
+            # one batch
             tb_idx = idx
             # if idx % num_per_epoch == 0 and idx != 0:
             #     for idx, pg in enumerate(optimizer.param_groups):
@@ -266,21 +268,16 @@ def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
         train_loss['cls'] = train_loss['cls'] / len(train_loader)
         train_loss['loc'] = train_loss['loc'] / len(train_loader)
         train_loss['total'] = train_loss['total'] / len(train_loader)
-        print("Train")
+        print("-- Train --")
         print(f"cls_loss: {train_loss['cls']:<6.3f} | loc_loss: {train_loss['loc']:<6.3f} | total_loss: {train_loss['total']:<6.3f}")
-
-        # wandb.log({
-        #     "train_cls_loss": train_loss['cls'],
-        #     "train_loc_loss": train_loss['loc'],
-        #     "train_total_loss": train_loss['total']
-        # })
 
         ####################################################################
         # Validating
         ####################################################################
         model.eval()
         for idx, data in enumerate(val_loader):
-            outputs = model(data)
+            with torch.no_grad():
+                outputs = model(data)
 
             batch_cls_loss = outputs['cls_loss']
             batch_loc_loss = outputs['loc_loss']
@@ -292,14 +289,17 @@ def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
         val_loss['cls'] = val_loss['cls'] / len(val_loader)
         val_loss['loc'] = val_loss['loc'] / len(val_loader)
         val_loss['total'] = val_loss['total'] / len(val_loader)
-        print("Validation")
+        print("-- Validation --")
         print(f"cls_loss: {val_loss['cls']:<6.3f} | loc_loss: {val_loss['loc']:<6.3f} | total_loss: {val_loss['total']:<6.3f}")
 
-        # wandb.log({
-        #     "val_cls_loss": val_loss['cls'],
-        #     "val_loc_loss": val_loss['loc'],
-        #     "val_total_loss": val_loss['total']
-        # })
+        wandb.log({
+            "train_cls_loss": train_loss['cls'],
+            "train_loc_loss": train_loss['loc'],
+            "train_total_loss": train_loss['total'],
+            "val_cls_loss": val_loss['cls'],
+            "val_loc_loss": val_loss['loc'],
+            "val_total_loss": val_loss['total']
+        })
 
         batch_time = time.time() - end
         batch_info = {}
@@ -329,13 +329,15 @@ def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
                             average_meter.batch_time.avg,
                             args.epoch * num_per_epoch)
 
-        # save model
+        ####################################################################
+        # Save model
+        ####################################################################
         if get_rank() == 0 and epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
             # save model directory
             save_model_dir = os.path.join(
                 cfg.TRAIN.MODEL_DIR,
                 # k{}_r{}_e{}_b{}_{bg0.5}
-                f"k{cfg.ANCHOR.ANCHOR_NUM}_r{cfg.TRAIN.SEARCH_SIZE}_e{args.epoch}_b{args.batch_size}_{args.template_bg}{args.template_context_amount}"
+                f"k{cfg.ANCHOR.ANCHOR_NUM}_r{cfg.TRAIN.SEARCH_SIZE}_e{args.epoch}_b{args.batch_size}_{args.template_bg}{args.template_context_amount}_teacher"
             )
             if not os.path.exists(save_model_dir):
                 os.makedirs(save_model_dir)
@@ -345,15 +347,13 @@ def train(train_loader, val_loader, model, optimizer, lr_scheduler, tb_writer):
                 save_model_dir,
                 f"model_e{epoch}.pth"
             )
-            torch.save(
-                {
-                    'epoch': epoch,
-                    'state_dict': model.module.state_dict(),
-                    'optimizer': optimizer.state_dict()
-                },
-                save_model_path
-            )
+            torch.save({
+                'epoch': epoch,
+                'state_dict': model.module.state_dict(),
+                'optimizer': optimizer.state_dict()
+            }, save_model_path)
             print(f"save model to: {save_model_path}")
+
         end = time.time()
 
 
@@ -376,7 +376,7 @@ def main():
         # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
 
     # build dataset loader
-    train_loader, val_loader = build_data_loader(cfg.DATASET.VALIDATION_SPLIT)
+    train_loader, val_loader = build_data_loader(cfg.DATASET.VALIDATION_SPLIT, random_seed=42)
 
     # create model
     model = ModelBuilder().cuda()
@@ -419,19 +419,19 @@ def main():
 if __name__ == '__main__':
     seed_torch(args.seed)
 
-    # constants = {
-    #     "anchor": cfg.ANCHOR.ANCHOR_NUM,
-    #     "score_size": cfg.TRAIN.OUTPUT_SIZE,
-    #     "epochs": args.epoch,
-    #     "batch_size": args.batch_size,
-    #     "lr": cfg.TRAIN.BASE_LR,
-    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY
-    # }
-    # wandb.init(
-    #     project="siamrpnpp",
-    #     entity="adrien88",
-    #     name=f"e{args.epoch}-b{args.batch_size}-{args.template_bg}{args.template_context_amount}",
-    #     config=constants
-    # )
+    constants = {
+        "anchor": cfg.ANCHOR.ANCHOR_NUM,
+        "score_size": cfg.TRAIN.OUTPUT_SIZE,
+        "epochs": args.epoch,
+        "batch_size": args.batch_size,
+        "lr": cfg.TRAIN.BASE_LR,
+        "weight_decay": cfg.TRAIN.WEIGHT_DECAY
+    }
+    wandb.init(
+        project="siamrpnpp",
+        entity="adrien88",
+        name=f"k{cfg.ANCHOR.ANCHOR_NUM}_r{cfg.TRAIN.SEARCH_SIZE}_e{args.epoch}_b{args.batch_size}_{args.template_bg}{args.template_context_amount}_teacher",
+        config=constants
+    )
 
     main()

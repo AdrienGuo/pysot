@@ -15,8 +15,8 @@ ADJUST:
 RPN:
     TYPE: 'MultiRPN'
     KWARGS:
-        anchor_num: 5
-        # anchor_num: 11
+        # anchor_num: 5
+        anchor_num: 11
         in_channels: [256, 256, 256]
         weighted: true
 
@@ -24,13 +24,12 @@ MASK:
     MASK: false
 
 ANCHOR:
-    STRIDE: 10    # r=255, output_map=25 (template_map 有經過 15x15 -> 7x7 裁切)
-    # STRIDE: 15    # r=255, output_map=17 = (255-127) // 8 + 1
-    # STRIDE: 10    # r=600, output_map=60 = (600-127) // 8 + 1
+    # stride 是不能動的!!，他的數值應該就是經過 resnet 的縮小倍數，也就是縮小 8 倍
+    STRIDE: 8    # official
     RATIOS: [0.33, 0.5, 1, 2, 3]
     SCALES: [8]
-    ANCHOR_NUM: 5
-    # ANCHOR_NUM: 11
+    # ANCHOR_NUM: 5
+    ANCHOR_NUM: 11
 
 TRACK:
     TYPE: 'SiamRPNTracker'
@@ -38,6 +37,6 @@ TRACK:
     WINDOW_INFLUENCE: 0.42
     LR: 0.38
     EXEMPLAR_SIZE: 127
-    INSTANCE_SIZE: 255
+    INSTANCE_SIZE: 600
     BASE_SIZE: 8
     CONTEXT_AMOUNT: 0.5

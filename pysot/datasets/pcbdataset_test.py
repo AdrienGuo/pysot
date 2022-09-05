@@ -61,14 +61,14 @@ class PCBDatasetTest():
         self.search = search
 
         self.template_aug = Augmentation(
-            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
-            search_size=cfg.TRAIN.SEARCH_SIZE,
+            template_size=cfg.TRACK.EXEMPLAR_SIZE,
+            search_size=cfg.TRACK.INSTANCE_SIZE,
             type="template"
         )
 
         self.search_aug = Augmentation(
-            template_size=cfg.TRAIN.EXEMPLAR_SIZE,
-            search_size=cfg.TRAIN.SEARCH_SIZE,
+            template_size=cfg.TRACK.EXEMPLAR_SIZE,
+            search_size=cfg.TRACK.INSTANCE_SIZE,
             type="search"
         )
 
@@ -299,7 +299,7 @@ class PCBDatasetTest():
         # Step 2.
         # process the template and search images
         ####################################################################
-        template_image, template_box, origin_template_box = self.template_aug(
+        template_image, template_ratio, template_box, origin_template_box = self.template_aug(
             template_image,
             template_box,
             bg=self.template_bg,
@@ -310,6 +310,7 @@ class PCBDatasetTest():
         search_image, gt_boxes, r, spatium = self.search_aug(
             search_image,
             search_bbox,
+            ratio=template_ratio
         )
 
         #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
@@ -365,19 +366,16 @@ class PCBDatasetTest():
         gt_boxes[:, 2] = (gt_boxes[:, 2] - gt_boxes[:, 0])    # w
         gt_boxes[:, 3] = (gt_boxes[:, 3] - gt_boxes[:, 1])    # h
 
-        # print(f"gt_boxes: {gt_boxes}")
-        # ipdb.set_trace()
-
         template_image = template_image.transpose((2, 0, 1)).astype(np.float32)     # (127, 127, 3) -> (3, 127, 127)
         search_image = search_image.transpose((2, 0, 1)).astype(np.float32)
 
         return {
             "image_path": image_path,
-            'template_box': template_box,    # 畫圖用
-            'origin_template_box': origin_template_box,    # 畫圖用
             'template_image': template_image,
             'search_image': search_image,
             'cls': self.images[idx][1],
+            'template_box': template_box,    # 畫圖用
+            'origin_template_box': origin_template_box,    # 畫圖用
             'gt_boxes': gt_boxes,    # 算 precision, recall 需要
             'r': r,
             'spatium': spatium

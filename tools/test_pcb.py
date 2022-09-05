@@ -11,7 +11,7 @@ import cv2
 import ipdb
 import matplotlib.pyplot as plt
 import numpy as np
-from pysot.utils.check_image import draw_preds, save_image
+from pysot.utils.check_image import draw_box, draw_preds, save_image
 import torch
 import torchvision.transforms.functional as F
 from PIL import Image, ImageDraw, ImageFont
@@ -179,32 +179,23 @@ torch.set_num_threads(1)
 
 
 def test(test_loader, tracker, dir):
+    clocks = 0
     for idx, data in enumerate(test_loader):
+        # only one data in a batch (batch_size=1)
         image_path = data['image_path'][0]
         template_box = data['template_box'][0]
         origin_template_box = data['origin_template_box'][0]
         template_image = data['template_image'].cuda()
         search_image = data['search_image'].cuda()
-        gt_boxes = data['gt_boxes'].cuda()    # 用不到
+        gt_boxes = data['gt_boxes'][0]
         scale_ratio = data['r'][0].cpu().numpy()
         spatium = [x.cpu().item() for x in data['spatium']]
 
-        # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
-        # search = [torch.from_numpy(search).cuda() for search in data['search']]
-
-        # image_path = torch.stack(image_path, dim=0)
-        # template_image = torch.stack(template_image, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last three dims)
-        # search_image = torch.stack(search_image, dim=0)
-        # cls = torch.stack(cls, dim=0)
-        # template = torch.stack(template, dim=0)
-        # search = torch.stack(search, dim=0)
+        ipdb.set_trace()
 
         ####################################################################
         # load image
         ####################################################################
-        # template = template[0]
-        # template = template[0]      # 好冗，但我暫時想不到其他方法
-        # image_path = image_path
         print(f"load image from: {image_path}")
         image = cv2.imread(image_path)
 
@@ -233,7 +224,7 @@ def test(test_loader, tracker, dir):
         if not os.path.isdir(z_dir):
             os.makedirs(z_dir)
             print(f"Create dir: {z_dir}")
-        # >>>>>>>>>>>>>>>>
+        # >>>>>>>>>>>>>>>>>>
         # 創 sub_dir/pred_annotation，裡面存 pred_annotation
         anno_dir = os.path.join(sub_dir, "pred_annotation")
         if not os.path.isdir(anno_dir):
@@ -245,6 +236,7 @@ def test(test_loader, tracker, dir):
             os.makedirs(origin_anno_dir)
             print(f"Create dir: {origin_anno_dir}")
         # <<<<<<<<<<<<<<<<<<
+        # >>>>>>>>>>>>>>>>>>
         # 創 sub_dir/pred，裡面存 pred image
         pred_dir = os.path.join(sub_dir, "pred")
         if not os.path.isdir(pred_dir):
@@ -255,6 +247,7 @@ def test(test_loader, tracker, dir):
         if not os.path.isdir(origin_pred_dir):
             os.makedirs(origin_pred_dir)
             print(f"Create dir: {origin_pred_dir}")
+        # <<<<<<<<<<<<<<<<<<
 
         ####################################################################
         # save original image
@@ -268,7 +261,7 @@ def test(test_loader, tracker, dir):
         ####################################################################
         search_image_cpu = search_image[0].cpu().numpy().copy()
         search_image_cpu = search_image_cpu.transpose(1, 2, 0)      # (3, 255, 255) -> (255, 255, 3)
-        search_path = os.path.join(search_dir, f"{image_name}.jpg")
+        search_path = os.path.join(search_dir, f"{idx}.jpg")
         save_image(search_image_cpu, search_path)
         print(f"save search image to: {search_path}")
 
@@ -280,6 +273,8 @@ def test(test_loader, tracker, dir):
         scores = None
         template_box = template_box.cpu().numpy().squeeze()
         origin_template_box = origin_template_box.cpu().numpy().squeeze()
+        gt_boxes = gt_boxes.cpu().numpy()    # gt_boxes: (n, 4) #x1y1wh
+
         # convert template_box to the original size
         # template_box[0], template_box[2] = template_box[0] * image.shape[1], template_box[2] * image.shape[1]
         # template_box[1], template_box[3] = template_box[1] * image.shape[0], template_box[3] * image.shape[0]
@@ -313,16 +308,12 @@ def test(test_loader, tracker, dir):
         origin_template_box = np.around(origin_template_box, decimals=2)
         origin_pred_boxes.append(origin_template_box)
 
-        # gt_box = np.array(gt_box)
-        # cx, cy, w, h = get_axis_aligned_bbox(gt_box)
-        # gt_bbox_xywh = [cx-w/2, cy-h/2, w, h]   # (x1, y1, w, h)
-
         ####################################################################
         # init tracker
         # save template image to ./results/images/{image_name}/template/{idx}.jpg
         ####################################################################
+        tic = cv2.getTickCount()
         # 用 template image 將 tracker 初始化
-        # z_crop = tracker.init(image, gt_box)
         z_img = tracker.init(template_image, template_box)
         z_img = np.transpose(z_img, (1, 2, 0))        # (3, 127, 127) -> (127, 127, 3)
         z_path = os.path.join(z_dir, f"{idx}.jpg")
@@ -344,6 +335,8 @@ def test(test_loader, tracker, dir):
         for origin_box in outputs['origin_pred_boxes']:
             origin_box = np.around(origin_box, decimals=2)
             origin_pred_boxes.append(origin_box)
+        toc = cv2.getTickCount()
+        clocks += toc - tic    # 總共有多少個 clocks (clock cycles)
 
         # save search image
         x_img = outputs['x_img']
@@ -373,13 +366,19 @@ def test(test_loader, tracker, dir):
         print(f"save origin annotation result to: {origin_anno_path}")
 
         ####################################################################
+        # draw the gt boxes
+        ####################################################################
+        # === gt_boxes on "search" image ===
+        gt_image = draw_box(search_image_cpu, gt_boxes, type="gt")
+
+        ####################################################################
         # draw the pred boxes
         ####################################################################
         # === pred_boxes on "search" image ===
         pred_path = os.path.join(pred_dir, f"{idx}.jpg")
-        pred_image = draw_preds(sub_dir, search_image_cpu, scores, anno_path, idx)
-        if pred_image is None:      # 如果沒偵測到物件，存 original image
-            save_image(image, pred_path)
+        pred_image = draw_preds(sub_dir, gt_image, scores, anno_path, idx)
+        if pred_image is None:      # 如果沒偵測到物件，存 search image
+            save_image(search_image_cpu, pred_path)
         else:
             save_image(pred_image, pred_path)
         print(f"save pred image to: {pred_path}")
@@ -393,6 +392,12 @@ def test(test_loader, tracker, dir):
         print(f"save origin pred image to: {origin_pred_path}")
 
         print("=" * 20)
+
+        ipdb.set_trace()
+
+    period = clocks / cv2.getTickFrequency()
+    fps = idx / period
+    print(f"Speed: {fps} fps")
 
 
 if __name__ == "__main__":

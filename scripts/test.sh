@@ -1,10 +1,10 @@
 # !/bin/sh
 
-kmeans=(5)
+kmeans=(11)
 resolution=(255)
 epochs=(200)
-epoch_num=(20)
 batch=(32)
+epoch_num=(200)
 
 # 決定 template image 是否要有 bg
 # bg: background, nbg: no background
@@ -14,7 +14,7 @@ template_context_amount=(2)
 
 
 model_dir="./save_models"
-model="k${kmeans}_r${resolution}_e${epochs}_b${batch}_${template_bg}${template_context_amount}/model_e${epoch_num}.pth"
+model="k${kmeans}_r${resolution}_e${epochs}_b${batch}_${template_bg}${template_context_amount}_teacher/model_e${epoch_num}.pth"
 # model="siamrpn_r50_l234_dwxcorr/model.pth"    # 官方權重檔
 dataset="val"
 save_dir="./results/${dataset}"

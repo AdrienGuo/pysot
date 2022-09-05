@@ -69,7 +69,7 @@ class ModelBuilder(nn.Module):
             xf = self.neck(xf)
 
         cls, loc = self.rpn_head(self.zf, xf)
-        
+
         if cfg.MASK.MASK:
             mask, self.mask_corr_feature = self.mask_head(self.zf, xf)
         
@@ -92,23 +92,8 @@ class ModelBuilder(nn.Module):
     def forward(self, data):
         """ only used in training
         Args:
-            只需要傳入 gt，
-            label_cls, label_loc 在這裡面算
+            只需要傳入 gt，label_cls, label_loc 在這裡面算
         """
-        # start = time.time()
-        # template = [torch.from_numpy(template).cuda() for template in data['template_image']]
-        # search = [torch.from_numpy(search).cuda() for search in data['search_image']]
-        # label_cls = [torch.from_numpy(label_cls).cuda() for label_cls in data['label_cls']]
-        # label_loc = [torch.from_numpy(label_loc).cuda() for label_loc in data['label_loc']]
-        # label_loc_weight = [torch.from_numpy(label_loc_weight).cuda() for label_loc_weight in data['label_loc_weight']]
-        # gt_boxes = [torch.from_numpy(gt_box).cuda() for gt_box in data['gt_boxes']]
-
-        # template = torch.stack(template, dim=0)     # turn to tensor datatype with [b, c, w, h] (not sure about the order of last two dims)
-        # search = torch.stack(search, dim=0)
-        # label_cls = torch.stack(label_cls, dim=0)
-        # label_loc = torch.stack(label_loc, dim=0)
-        # label_loc_weight = torch.stack(label_loc_weight, dim=0)
-
         ####################################################################
         # 拿資料
         ####################################################################
@@ -119,24 +104,14 @@ class ModelBuilder(nn.Module):
         idx = data['idx'][0]
 
         ####################################################################
-        # 計算 label_cls, label_loc
+        # get labels of cls, loc, weight
         ####################################################################
         label_cls, label_loc, label_loc_weight, _ = self.anchor_target(gt_boxes, self.output_size, image_name=image_name, idx=idx)
 
-        # print(f"label_cls: {label_cls.shape}")
-        # print(f"label_loc: {label_loc.shape}")
-
-        # template_image = template.cpu().numpy()
-        # print(f"template: {template_image.shape}")
-        # cv2.imwrite("./image_check/trash/template.jpg", template_image[0].transpose(1, 2, 0))
-        # print("save template image")
-
-        # search_image = search.cpu().numpy()
-        # print(f"search: {search_image.shape}")
-        # cv2.imwrite("./image_check/trash/search.jpg", search_image[0].transpose(1, 2, 0))
-        # print("save search image")
-
-        # get feature
+        ####################################################################
+        # get feature maps
+        ####################################################################
+        # out = [out[i] for i in self.used_layers]
         zf = self.backbone(template)
         xf = self.backbone(search)
         if cfg.MASK.MASK:
@@ -144,25 +119,26 @@ class ModelBuilder(nn.Module):
             self.xf_refine = xf[:-1]
             xf = xf[-1]
         if cfg.ADJUST.ADJUST:
-            zf = self.neck(zf)
-            xf = self.neck(xf)
-        
+            zf = self.neck(zf)    # [(b, c, 7, 7), (), ]
+            xf = self.neck(xf)    # [(b, c, 31, 31), (), ]
+
+        ####################################################################
+        # get preds of cls, loc
+        ####################################################################
         # cls: (b, 10, 25, 25), loc: (b, 20, 25, 25)
         cls, loc = self.rpn_head(zf, xf)
 
-        # get loss
-        # print(f"cls: {cls.shape}")
+        ####################################################################
+        # calculate loss of cls, loc
+        ####################################################################
         cls = self.log_softmax(cls)     # cls (b, 5, 25, 25, 2)
-        # print(f"cls: {cls[0, 0, 0, 0, :]}")
-        # print(f"label_cls: {label_cls.shape}")
         cls_loss = select_cross_entropy_loss(cls, label_cls)
         loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
 
         outputs = {}
         outputs['cls_loss'] = cls_loss
         outputs['loc_loss'] = loc_loss
-        outputs['total_loss'] = cfg.TRAIN.CLS_WEIGHT * cls_loss \
-                                + cfg.TRAIN.LOC_WEIGHT * loc_loss
+        outputs['total_loss'] = (cfg.TRAIN.CLS_WEIGHT * cls_loss) + (cfg.TRAIN.LOC_WEIGHT * loc_loss)
 
         if cfg.MASK.MASK:
             # TODO
@@ -170,8 +146,5 @@ class ModelBuilder(nn.Module):
             mask_loss = None
             outputs['total_loss'] += cfg.TRAIN.MASK_WEIGHT * mask_loss
             outputs['mask_loss'] = mask_loss
-
-        # end = time.time()
-        # print(f"=== forward duration: {end - start:.4f} s")
 
         return outputs

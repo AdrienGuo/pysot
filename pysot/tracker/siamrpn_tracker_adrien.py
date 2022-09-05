@@ -61,18 +61,19 @@ def search2origin(box, r, s):
 class SiamRPNTracker(SiameseTracker):
     def __init__(self, model):
         super(SiamRPNTracker, self).__init__()
-        # score_size 最後的 feature map 大小: 25
-        # self.score_size = (cfg.TRACK.INSTANCE_SIZE - cfg.TRACK.EXEMPLAR_SIZE) // \
-        #     cfg.ANCHOR.STRIDE + 1 + cfg.TRACK.BASE_SIZE
-        self.score_size = cfg.TRAIN.OUTPUT_SIZE
-        # self.anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
+        # score_size: 最後的 feature map 大小
+        self.score_size = (cfg.TRACK.INSTANCE_SIZE - cfg.TRACK.EXEMPLAR_SIZE) // \
+            cfg.ANCHOR.STRIDE + 1 + cfg.TRACK.BASE_SIZE
+        # self.score_size = cfg.TRAIN.OUTPUT_SIZE
         self.anchor_num = cfg.ANCHOR.ANCHOR_NUM
+        # self.anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
 
         hanning = np.hanning(self.score_size)
         window = np.outer(hanning, hanning)     # 外積
         self.window = np.tile(window.flatten(), self.anchor_num)
 
-        self.anchors = self.generate_anchor(self.score_size)    # (anchor_num*25*25, 4)
+        self.anchors = self.generate_anchor(img_c=cfg.TRACK.INSTANCE_SIZE // 2,
+                                            score_size=self.score_size)    # (anchor_num*25*25, 4)
 
         # self.anchors = Anchors(cfg.ANCHOR.STRIDE,
         #                        cfg.ANCHOR.RATIOS,
@@ -86,16 +87,18 @@ class SiamRPNTracker(SiameseTracker):
         self.model = model
         self.model.eval()
 
-    def generate_anchor(self, score_size):
+    def generate_anchor(self, img_c, score_size):
         """
         Arg:
             score_size: 最後的 feature map 大小
         Return:
             anchor: (5*25*25, 4)
         """
+
         anchors = Anchors(cfg.ANCHOR.STRIDE,
                           cfg.ANCHOR.RATIOS,
                           cfg.ANCHOR.SCALES)
+
         anchor = anchors.anchors    # (5, 4)
 
         x1, y1, x2, y2 = anchor[:, 0], anchor[:, 1], anchor[:, 2], anchor[:, 3]
@@ -104,8 +107,16 @@ class SiamRPNTracker(SiameseTracker):
         anchor_num = anchor.shape[0]
         anchor = np.tile(anchor, score_size * score_size).reshape((-1, 4))      # (5*25*25, 4)
 
-        # ori = - (cfg.TRAIN.SEARCH_SIZE // 2)        # 把所有 anchor 以 search image 的中心當作 (0, 0)
-        ori = 0
+        # 把所有 anchor 以 search image 的中心當作 (0, 0)，(不需要了，我自己算！！)
+        # ori = - (cfg.TRAIN.SEARCH_SIZE // 2)
+
+        ####################################################################
+        # === 使用 official model 要用這個！！ ===
+        # 這裡不能使用 anchors.generate_all_anchors() 是因為
+        # 產生出來的 anchor 排序會不一樣，而我一定要符合 officail model 產生出來的格式
+        ####################################################################
+        # 這個 ori 超級重要
+        ori = img_c - score_size // 2 * stride
         # 生成網格座標
         xx, yy = np.meshgrid([ori + stride * dx for dx in range(score_size)],
                              [ori + stride * dy for dy in range(score_size)])
@@ -113,7 +124,20 @@ class SiamRPNTracker(SiameseTracker):
                  np.tile(yy.flatten(), (anchor_num, 1)).flatten()
         anchor[:, 0], anchor[:, 1] = xx.astype(np.float32), yy.astype(np.float32)
 
-        # anchors.generate_all_anchors(im_c=255 // 2, size=score_size)
+        ####################################################################
+        # === 使用我自己 train 的 model ===
+        # 又是順序問題，一定要先算出 w, h，才能去算 cx, cy
+        # 先算 cx, cy 的話，w, h 就不能直接 x2 - x1 了，因為會變成 x2 - cx
+        # 所以要寫成 (x2 - cx) * 2
+        # 我找超久...
+        ####################################################################
+        # anchor = anchors.generate_all_anchors(im_c=cfg.TRACK.INSTANCE_SIZE // 2,
+        #                                       size=score_size)
+        # anchor[:, 0] = (anchor[:, 0] + anchor[:, 2]) * 0.5
+        # anchor[:, 1] = (anchor[:, 1] + anchor[:, 3]) * 0.5
+        # anchor[:, 2] = (anchor[:, 2] - anchor[:, 0]) * 2
+        # anchor[:, 3] = (anchor[:, 3] - anchor[:, 1]) * 2
+
         # anchor = anchors.all_anchors[1]
         # anchor = np.reshape(anchor, (4, -1))
         # anchor = np.transpose(anchor, (1, 0))

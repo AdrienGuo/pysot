@@ -29,9 +29,11 @@ class AnchorTarget(nn.Module):
         self.anchors = Anchors(cfg.ANCHOR.STRIDE,
                                cfg.ANCHOR.RATIOS,
                                cfg.ANCHOR.SCALES)
-
+        # score_size: correlation 做完後的 size，下面這個是公式
+        score_size = (cfg.TRAIN.SEARCH_SIZE - cfg.TRAIN.EXEMPLAR_SIZE) // \
+            cfg.ANCHOR.STRIDE + 1 + cfg.TRAIN.BASE_SIZE
         all_anchors = self.anchors.generate_all_anchors(im_c=cfg.TRAIN.SEARCH_SIZE // 2,
-                                                        size=cfg.TRAIN.OUTPUT_SIZE)
+                                                        size=score_size)
         # self.all_anchors: (all_anchor_num, 4) #corner
         self.all_anchors = torch.from_numpy(all_anchors).cuda()
 
@@ -98,11 +100,6 @@ class AnchorTarget(nn.Module):
 
         #     overlap = np.zeros((anchor_num, size, size), dtype=np.float32)
         #     return cls, delta, delta_weight, overlap
-
-        # anchor_box: [(x1, y1, x2, y2)=4, anchor_num=5, feature_width=25, feature_height=25]
-        # anchor_center: [(cx, cy, w, h)=4, anchor_num=5, feature_width=25, feature_height=25]
-        # anchor_box = self.anchors.all_anchors[0]
-        # anchor_center = self.anchors.all_anchors[1]
 
         self.all_anchors = self.all_anchors.type_as(gt_boxes)   # move to the same gpu
 
@@ -210,28 +207,28 @@ class AnchorTarget(nn.Module):
         bbox_targets = bbox_targets.view(batch_size, size, size, cfg.ANCHOR.ANCHOR_NUM, 4).permute(0, 4, 3, 1, 2).contiguous()
         bbox_weights = bbox_weights.view(batch_size, size, size, cfg.ANCHOR.ANCHOR_NUM).permute(0, 3, 1, 2).contiguous()
 
-        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # all_anchors = self.all_anchors.view(size, size, cfg.ANCHOR.ANCHOR_NUM, 4).permute(3, 2, 0, 1).cpu().numpy().copy()
         # all_anchors[2] = all_anchors[2] - all_anchors[0]    # x2 -> w
         # all_anchors[3] = all_anchors[3] - all_anchors[1]    # y2 -> h
 
-        # # 印出原本的 anchor
-        # anchor = all_anchors[:, :, size//2, size//2]      # 選要哪一個 anchor
-        # anchor = np.transpose(anchor, (1, 0))
-        # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
-        # anchor_image = draw_box(img, anchor)
-        # anchor_dir = "./image_check/train/anchor/"
-        # anchor_path = os.path.join(anchor_dir, "anchor.jpg")
-        # save_image(anchor_image, anchor_path)
-        # print(f"save anchor image to: {anchor_path}")
+        # # === 畫出在 black bg 的 anchor ===
+        # # anchor = all_anchors[:, :, size//2, size//2]      # 選要哪一個 anchor
+        # # anchor = np.transpose(anchor, (1, 0))
+        # # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
+        # # anchor_image = draw_box(img, anchor)
+        # # anchor_dir = "./image_check/train/anchor/"
+        # # anchor_path = os.path.join(anchor_dir, "anchor.jpg")
+        # # save_image(anchor_image, anchor_path)
+        # # print(f"save anchor image to: {anchor_path}")
 
-        # # 把 pos anchor 印出來
+        # # === 把 pos anchor 印出來 ===
         # cls_check = cls[0].cpu().numpy().copy()
         # pos = np.where(cls_check == 1)
         # pos_anchors = all_anchors[:, pos[0], pos[1], pos[2]]    # (4, n)
 
         # pos_anchors = np.transpose(pos_anchors, (1, 0))
-        # black_image = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
+        # black_image = np.zeros((cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE, 3))   # 製作黑色底圖
         # pos_image = draw_box(black_image, pos_anchors)
 
         # # sub_dir 是以 "圖片名稱" 命名
@@ -245,79 +242,9 @@ class AnchorTarget(nn.Module):
         # pos_path = os.path.join(pos_dir, f"{idx}.jpg")
         # save_image(pos_image, pos_path)
         # print(f"save pos image to: {pos_path}")
-        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         return cls, bbox_targets, bbox_weights, max_overlaps
-
-        # fg label: for each gt, anchor with highest overlap
-        gt_argmax_overlaps = overlaps.argmax(axis=0)
-        gt_max_overlaps = overlaps[gt_argmax_overlaps,
-                                   np.arange(overlaps.shape[1])]
-        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
-        # fg label: for each anchor, gt with the highest overlap
-        argmax_overlaps = overlaps.argmax(axis=1)       # argmax_overlaps: (all_anchor_num, )
-        max_overlaps = overlaps[np.arange(overlaps.shape[0]), argmax_overlaps]
-
-        # 我確定這個 reshape 不會影響排列順序
-        max_overlaps = np.reshape(max_overlaps, anchor_box.shape[-3:])
-        assert max_overlaps[max_overlaps < 0].size == 0, "max_overlaps has iou smaller than 0!!!"
-        assert max_overlaps[max_overlaps > 1].size == 0, "max_overlaps has iou bigger than 1!!!"
-
-        # 遇到多個 target 的問題了
-        # 參考 https://github.com/matterport/Mask_RCNN/blob/3deaec5d902d16e1daf56b62d5971d428dc920bc/mrcnn/model.py#L1526
-        delta = target_delta(anchor_center, target, argmax_overlaps)    # delta: (4, anchor_num, 25, 25)
-        
-        # delta[0] = (tcx - cx) / w
-        # delta[1] = (tcy - cy) / h
-        # delta[2] = np.log(tw / w)
-        # delta[3] = np.log(th / h)
-
-        # max_overlaps = IoU([x1, y1, x2, y2], target)
-
-        # fg label: above threshold IOU
-        pos = np.where(max_overlaps > cfg.TRAIN.THR_HIGH)        # pos (positive): 3維的，就是 anchor_box[-3:] 的維度
-        neg = np.where(max_overlaps < cfg.TRAIN.THR_LOW)
-
-        pos, pos_num = select(pos, cfg.TRAIN.POS_NUM)           # 最多只會選 16 個 anchors 出來
-        neg, neg_num = select(neg, cfg.TRAIN.TOTAL_NUM - cfg.TRAIN.POS_NUM)
-
-        cls = np.reshape(cls, (-1))
-        cls[gt_argmax_overlaps] = 1     # 將與 gt 有最大 IoU 的直接判為 fg
-        cls = np.reshape(cls, (anchor_num, size, size))
-        cls[pos] = 1                    # 將所有的 anchor 與 gt 的 IoU 有大於 threshold 的判為 fg
-        delta_weight[pos] = 1. / (pos_num + 1e-6)       # 正樣本的 anchor 數量越少, weight 越高 (why)
-        # 這個 delta_weight 讓我找好久... 07/14/2022
-
-        cls[neg] = 0
-
-        # 印出原本的 anchor
-        all_anchors = self.anchors.all_anchors[0].copy()
-        all_anchors[2] = all_anchors[2] - all_anchors[0]
-        all_anchors[3] = all_anchors[3] - all_anchors[1]
-
-        # anchor = all_anchors[:, 0:1, -1, 0]      # 選要哪一個 anchor
-        # anchor = np.transpose(anchor, (1, 0))
-        # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
-        # anchor_image = draw_box(img, anchor)
-        # anchor_dir = "./image_check/train/anchor/"
-        # anchor_path = os.path.join(anchor_dir, "anchor.jpg")
-        # save_image(anchor_image, anchor_path)
-        # print(f"save anchor image to: {anchor_path}")
-
-        # # 把 anchor 印出來
-        # pos = np.where(cls == 1)
-        # pos_anchors = all_anchors[:, pos[0], pos[1], pos[2]]
-        # pos_anchors = np.transpose(pos_anchors, (1, 0))
-        # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
-        # pos_image = draw_box(img, pos_anchors)
-        # pos_dir = "./image_check/train/pos/"
-        # pos_path = os.path.join(pos_dir, f"{idx}.jpg")
-        # save_image(pos_image, pos_path)
-        # print(f"save pos image to: {pos_path}")
-
-        # ipdb.set_trace()
-
-        return cls, delta, delta_weight, max_overlaps
 
 
 def _unmap(data, count, inds, batch_size, fill=0):

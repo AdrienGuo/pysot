@@ -20,7 +20,7 @@ class AdjustLayer(nn.Module):
     def forward(self, x):
         x = self.downsample(x)
 
-        # 就在這裡!! 會把 template feature 做 crop
+        # 就在這裡!! 會把 template feature map 做 crop
         """ 原文
         Thus we crop the center 7 × 7 regions [41] as the template
         feature where each feature cell can still capture the entire

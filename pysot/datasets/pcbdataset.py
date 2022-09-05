@@ -41,12 +41,6 @@ class PCBDataset():
         """
         super(PCBDataset, self).__init__()
 
-        # create anchor target
-        # self.anchor_target = AnchorTarget()
-
-        # 可以不用迴圈
-        # for name in cfg.DATASET.NAMES:
-        #     data_cfg = getattr(cfg.DATASET, name)
         data_cfg = getattr(cfg.DATASET, "CUSTOM")
         
         self.root = data_cfg.ROOT
@@ -57,13 +51,12 @@ class PCBDataset():
         self.search = search
         self.max_num_box = self._find_max_num_box(self.search)    # targets 最多的數量
 
-        # data augmentation
+        # data augmentation (preprocess)
         self.template_aug = Augmentation(
             template_size=cfg.TRAIN.EXEMPLAR_SIZE,
             search_size=cfg.TRAIN.SEARCH_SIZE,
             type="template"
         )
-        
         self.search_aug = Augmentation(
             template_size=cfg.TRAIN.EXEMPLAR_SIZE,
             search_size=cfg.TRAIN.SEARCH_SIZE,
@@ -173,14 +166,7 @@ class PCBDataset():
             image_anno: 
         """
         image_path, template_cls = self.images[idx]
-        # print(f"type: {type(arg)}, {type(arg)}")
         image_anno = arg[idx]
-        # if type=="template":
-        #     image_anno = self.template[idx]
-        # elif type=="search":
-        #     image_anno = self.search[idx]
-        # print(f"image_anno: {image_anno}")
-        # image_anno = np.stack(image_anno).astype(np.float32)        # 這要幹嘛? 回傳的image_anno不是只有一個物件嗎?
         return image_path, image_anno
 
     def get_positive_pair(self, idx):
@@ -194,105 +180,12 @@ class PCBDataset():
             idx = np.random.randint(low=0, high=len(self.images))
             return self.get_image_anno(idx, self.search)
 
-    # def _get_bbox(self, image, shape, type):
-    #     """
-    #     Args:
-    #         image: 實際影像
-    #         shape: bbox 的位置 ([cx, cy, w, h])，是比例值
-    #     """
-    #     # 是先高度再寬度 !!!
-    #     imh, imw = image.shape[:2]          # image 的 height, width
-    #     if type == "template":
-    #         cx, w = imw*shape[0], imw*shape[2]
-    #         cy, h = imh*shape[1], imh*shape[3]
-    #     elif type == "search":
-    #         cx, w = imw*shape[:, 0], imw*shape[:, 2]
-    #         cy, h = imh*shape[:, 1], imh*shape[:, 3]
-    #     bbox = center2corner(Center(cx, cy, w, h))      # Center 有可能不能這樣讀資料...
-    #     return bbox
-    
-    # def _get_bbox_amy(self, shape, typeName, direction, origin_size, temp):#原本cx,cy,w,h
-    #     bbox=[]
-    #     length = len(shape)
-    #     if typeName=="template":                    # 但亭儀的 typeName 完全沒有等於 template，應該是因為 template 也不需要 bbox
-    #         shape[0]=shape[0]*origin_size[0]        # shape 是比例，origin_size 是實際影像大小
-    #         shape[1]=shape[1]*origin_size[1]
-    #         shape[2]=shape[2]*origin_size[0]
-    #         shape[3]=shape[3]*origin_size[1]
-    #         # 這裡是要把物體移到中間
-    #         if direction=='x':
-    #             x1 = (shape[0]-shape[2]/2)+temp     # temp 這個取名我不懂...
-    #             y1 = (shape[1]-shape[3]/2)
-    #             x2 = (shape[0]+shape[2]/2)+temp
-    #             y2 = (shape[1]+shape[3]/2)
-    #         else:
-    #             x1 = (shape[0]-shape[2]/2)
-    #             y1 = (shape[1]-shape[3]/2)+temp
-    #             x2 = (shape[0]+shape[2]/2)
-    #             y2 = (shape[1]+shape[3]/2)+temp
-    #         bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
-    #     else:
-            
-    #         shape[:,0]=shape[:,0]*origin_size[0]
-    #         shape[:,1]=shape[:,1]*origin_size[1]
-    #         shape[:,2]=shape[:,2]*origin_size[0]
-    #         shape[:,3]=shape[:,3]*origin_size[1]
-
-    #         for i in range (len(shape)):
-    #             if direction=='x':
-    #                 x1 = (shape[i][0]-shape[i][2]/2)+temp
-    #                 y1 = (shape[i][1]-shape[i][3]/2)
-    #                 x2 = (shape[i][0]+shape[i][2]/2)+temp
-    #                 y2 = (shape[i][1]+shape[i][3]/2)
-    #             else:
-    #                 x1 = (shape[i][0]-shape[i][2]/2)
-    #                 y1 = (shape[i][1]-shape[i][3]/2)+temp
-    #                 x2 = (shape[i][0]+shape[i][2]/2)
-    #                 y2 = (shape[i][1]+shape[i][3]/2)+temp
-    #             bbox.append(center2corner(Center((x1+(x2-x1)/2),(y1+(y2-y1)/2), (x2-x1), (y2-y1))))
-            
-    #     return bbox
-    
-    
-    # # 使用 image_crop 511
-    # def _search_gt_box(self, image, shape, scale, check):
-    #     # print("box:",shape.shape)
-    #     imh, imw = image.shape[:2]
-    #     context_amount = 0.5
-    #     exemplar_size = cfg.TRAIN.EXEMPLAR_SIZE
-    #     bbox=[]
-    #     cx=shape[:,0]*imw
-    #     cy=shape[:,1]*imh
-    #     w=shape[:,2]*imw
-    #     h=shape[:,3]*imh
-            
-    #     for i in range (len(shape)):
-            
-    #         w1 ,h1 = w[i],h[i]
-    #         if check==0:
-    #             cx1 = cx[i]*scale[0]
-    #             cy1 = cy[i]*scale[1]
-    #         else:
-    #             cx1 = cx[i]*scale[0]+scale[2]
-    #             cy1 = cy[i]*scale[1]+scale[3]
-   
-    #         wc_z = w1 + context_amount * (w1+h1)
-    #         hc_z = h1 + context_amount * (w1+h1)
-    #         s_z = np.sqrt(wc_z * hc_z)
-    #         scale_z = exemplar_size / s_z
-    #         w1 = w1*scale_z
-    #         h1 = h1*scale_z
-            
-    #         bbox.append(center2corner(Center(cx1, cy1, w1, h1)))
-    #     return bbox
-
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, idx):
         logger.debug("__getitem__")
 
-        # 就只是隨機 gray 而已 (在 augmentation 才會用到，那為甚麼不要在 .xxx_aug() 在做就好啊...)
         gray = cfg.DATASET.GRAY and cfg.DATASET.GRAY > np.random.random()
 
         # 加入 neg 的原因要去看 [DaSiamRPN](https://arxiv.org/pdf/1808.06048)
@@ -315,17 +208,9 @@ class PCBDataset():
         image_name = image_path.split('/')[-1].split('.')[0]
         # print(f"load image from: {image_path}")
         image = cv2.imread(image_path)
-        template_image = cv2.imread(image_path)        # cv2 讀進來的檔案是 BGR (一般是 RGB)
+        template_image = cv2.imread(image_path)    # cv2 讀進來的檔案是 BGR (一般是 RGB)
         search_image = cv2.imread(image_path)
 
-        # image_h, image_w = search_image.shape[:2]
-        # template_box = center2corner(template[1])
-        # tmplt_x1, tmplt_x2 = image_w * template_box[0], image_w * template_box[2]
-        # tmplt_y1, tmplt_y2 = image_h * template_box[1], image_h * template_box[3]
-        # print(f"image path: {template[0]}")
-        # print(f"[{tmplt_x1, tmplt_y1, tmplt_x2, tmplt_y2}]")
-        # print(f"search: \n{search[1]}")
-        
         if DEBUG:
             print(f"template image path: {template[0]}")
             print(f"search image path: {search[0]}")
@@ -340,14 +225,10 @@ class PCBDataset():
         # z: template
         # x: search
         ####################################################################
-        # z_h, z_w = template_image.shape[:2]         # need to save the original size of template image
         template_box = template[1]
         search_boxes = search[1]
 
-        # template_bbox_corner = center2corner(template_box)
-        # template_image, scale = crop_like_SiamFC(search_image, template_bbox_corner)
-
-        template_image, _, _ = self.template_aug(
+        template_image, template_ratio, _, _ = self.template_aug(
             template_image,
             template_box,
             bg=self.template_bg,
@@ -355,12 +236,13 @@ class PCBDataset():
         )
 
         # gt_boxes ((x1, y1, x2, y2), num)
-        search_image, gt_boxes, _ = self.search_aug(
+        search_image, gt_boxes, _, _ = self.search_aug(
             search_image,
-            search_boxes
+            search_boxes,
+            ratio=template_ratio
         )
 
-        #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>#
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         ########################
         # 創 directory
         ########################
@@ -386,9 +268,9 @@ class PCBDataset():
         #     os.makedirs(template_dir)
         #     print(f"Create dir: {template_dir}")
 
-        ########################
-        # 存圖片
-        ########################
+        # #########################
+        # # 存圖片
+        # #########################
         # origin_path = os.path.join(origin_dir, f"{idx}.jpg")
         # save_image(image, origin_path)
         # print(f"save original image to: {origin_path}")
@@ -405,82 +287,11 @@ class PCBDataset():
         # gt_image = draw_box(search_image, np.transpose(tmp_gt_boxes, (1, 0)))
         # save_image(gt_image, search_path)
         # print(f"save search image to: {search_path}")
-        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<#
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
         ####################################################################
         # Step 3.
-        # crop search image according to scale
-        # search crop (like SiamFC) 但影像都放在左上角 (不懂??)
-        # 同樣要處理 search 的 bbox
-        ####################################################################
-        # if (z_h * search_image.shape[0] > cfg.TRAIN.SEARCH_SIZE) or (z_w * search_image.shape[1] > cfg.TRAIN.SEARCH_SIZE):
-        #     centercrop = transforms.CenterCrop(cfg.TRAIN.SEARCH_SIZE)
-        #     resize = transforms.Resize([cfg.TRAIN.SEARCH_SIZE, cfg.TRAIN.SEARCH_SIZE])
-        #     search_image = Image.fromarray((cv2.cvtColor(search_image, cv2.COLOR_BGR2RGB)))     # 因為 transforms.centercrop 不能用 cv2
-        #     s_resize = resize(search_image)
-        #     origin_size = s_resize.size
-        #     search_image = centercrop(s_resize)
-        
-        #     if origin_size[0] < cfg.TRAIN.SEARCH_SIZE: #x
-        #         temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[0]) / 2
-        #         direction = 'x'
-        #     elif origin_size[1] < cfg.TRAIN.SEARCH_SIZE: #y
-        #         temp = (cfg.TRAIN.SEARCH_SIZE-origin_size[1]) / 2
-        #         direction = 'y'
-        #     else:
-        #         temp=0
-        #         direction = 'x'
-
-        #     # get bounding box
-        #     # 亭儀的 _get_bbox 要這樣寫應該是因為他有把 search image 移動過，所以 bbox 也要相對地移動
-        #     search_box = self._get_bbox_amy(search[1],"search",direction,origin_size,temp)
-        #     search_image = cv2.cvtColor(np.asarray(search_image), cv2.COLOR_RGB2BGR)
-        #     bbox = search_box
-        #     # bbox 和 search_box 竟然會是不一樣的 data type!!?
-        #     # bbox: corner, search_box: array
-        # else:
-        #     cx = (z_w/2)*scale[0]+scale[2]
-        #     cy = (z_h/2)*scale[1]+scale[3]
-        #     if (z_w*scale[0] < 300 ) and (z_h*scale[1] < 300 ):
-        #         mapping = np.array([[scale[0], 0, 300-cx],
-        #                     [0, scale[1], 300-cy]]).astype(np.float)
-        #         scale[2] = 300-cx
-        #         scale[3] = 300-cy
-        #         check=1
-        #     else:
-        #         mapping = np.array([[scale[0], 0, 0],
-        #                     [0, scale[1], 0]]).astype(np.float)
-        #         check=0
-            
-        #     search_image2 = cv2.warpAffine(search_image, mapping, (600, 600), 
-        #                            borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
-        
-        #     search_box = self._search_gt_box(search_image,search[1],scale,check)
-        #     bbox = search_box
-        #     search_image = search_image2
-        
-        # # save image
-        # if DEBUG:
-        #     file_name = template[0].split("/")[-1]
-        #     check_image.draw_bbox(search_image, bbox, file_name)
-        #     template_image_name = "template_" + template[0].split("/")[-1]
-        #     check_image.save_image("template", template_image, template_image_name)
-        #     search_image_name = "search_" + search[0].split("/")[-1]
-        #     check_image.save_image("search", search_image, search_image_name)
-
-        # # get bounding box
-        # # 先用 255*255 就好 (跑起來比較快)
-        # # template_box = self._get_bbox(template_image, template[1], "template")
-        # # search_box = self._get_bbox(search_image, search[1], "search")
-
-        # if DEBUG:
-        #     print(f"search_image shape: {search_image.shape}")
-        #     print(f"search_box type: {type(search_box)}")
-        #     print(f"search_box:\n {search_box}")
-        
-        ####################################################################
-        # Step 4.
-        # get the gt_boxes for training
+        # get the gt_boxes for calculating labels in training
         ####################################################################
         gt_boxes = np.asarray(gt_boxes)
         # gt_boxes = np.transpose(gt_boxes, (1, 0))
@@ -489,15 +300,15 @@ class PCBDataset():
         gt_boxes = np.transpose(gt_boxes, (1, 0))   # (4, num) -> (num, 4)
         gt_boxes = torch.from_numpy(gt_boxes)
 
-        # check the bounding box (這照理來說也不應該發生吧...):
+        # check the bounding box (這照理來說不應該發生吧...):
         not_keep = (gt_boxes[:, 0] == gt_boxes[:, 2]) | (gt_boxes[:, 1] == gt_boxes[:, 3])
         keep = torch.nonzero(not_keep == 0).view(-1)
 
         # 為了要解決 gt_boxes 數量不一致的問題
-        # padding 成數量最多的那個 gt_boxes 的數量
+        # 將所有的 gt_boxes 都 padding 成數量最多的那個 gt_boxes 的數量
+        # 確定這裡的 gt_boxes_padding 沒問題 (08/27/2022)
         gt_boxes_padding = torch.FloatTensor(self.max_num_box, gt_boxes.size(1)).zero_()
 
-        # 確定這裡的 gt_boxes_padding 沒問題 (08/27/2022)
         if keep.numel() != 0:
             gt_boxes = gt_boxes[keep]
             num_boxes = min(gt_boxes.size(0), self.max_num_box)
@@ -505,16 +316,6 @@ class PCBDataset():
         else:
             num_boxes = 0
             assert False, "=== There are no targets!! ==="
-
-        # # 先試試看單一追蹤
-        # random_pick = np.random.randint(low=len(bbox[0]), size=1)
-        # bbox = np.asarray(bbox)
-        # new_bbox = np.zeros((4, 1))
-        # new_bbox[0] = bbox[0][random_pick]
-        # new_bbox[1] = bbox[1][random_pick]
-        # new_bbox[2] = bbox[2][random_pick]
-        # new_bbox[3] = bbox[3][random_pick]
-        # bbox = Corner(new_bbox[0], new_bbox[1], new_bbox[2], new_bbox[3])
 
         # cls, delta, delta_weight, overlap = self.anchor_target(
         #     bbox, cfg.TRAIN.OUTPUT_SIZE, neg, idx)
@@ -526,9 +327,6 @@ class PCBDataset():
         return {
             'template_image': template_image,
             'search_image': search_image,
-            # 'label_cls': cls,
-            # 'label_loc': delta,
-            # 'label_loc_weight': delta_weight,
             'gt_boxes': gt_boxes_padding,
             'num_boxes': num_boxes,
             # 下面是檢查 anchor 的時候，要存檔用的
@@ -536,45 +334,10 @@ class PCBDataset():
             'idx': idx
         }
 
-    def collate_fn(self, batch):
-        """ 因為每個 template 會有 "不同數量" 的 targets，we need a collate function (to be passed to the DataLoader).
-            不然會跳出 RuntimeError: stack expects each tensor to be equal size, but got [4, 1] at entry 0 and [4, 2] at entry 2
-            參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/datasets.py#L60
-        args:
-            batch: an iterable of N sets from __getitem__()
-        return:
-            a tensor of images, lists of varying-size tensors of bounding boxes, etc
-        """
-        template_image = list()
-        search_image = list()
-        # cls = list()
-        # delta = list()
-        # delta_weight = list()
-        gt_boxes = list()
-
-        for b in batch:
-            template_image.append(b['template_image'])
-            search_image.append(b['search_image'])
-            # cls.append(b['label_cls'])
-            # delta.append(b['label_loc'])
-            # delta_weight.append(b['label_loc_weight'])
-            gt_boxes.append(b['gt_boxes'])
-                
-        return {
-            'template_image': template_image,
-            'search_image': search_image,
-            # 'label_cls': cls,
-            # 'label_loc': delta,
-            # 'label_loc_weight': delta_weight,
-            'gt_boxes': gt_boxes
-        }
-    
 
 if __name__ == "__main__":
     print("Loading dataset...")
     train_dataset = PCBDataset()
-    train_dataset.__getitem__(0)
-    print("Loading dataset has done!")
 
     # train_loader = DataLoader(train_dataset,
     #                           batch_size=cfg.TRAIN.BATCH_SIZE,
@@ -582,10 +345,5 @@ if __name__ == "__main__":
     #                           collate_fn=train_dataset.collate_fn,      # 參考: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/43fd8be9e82b351619a467373d211ee5bf73cef8/train.py#L72
     #                           pin_memory=True,
     #                           sampler=None)
-    # print(len(train_dataset))
-    # print(len(train_loader))
-
-    # for data in enumerate(train_loader):
-    #     pass
 
     print("="*20 + " Done!! " + "="*20 + "\n")
