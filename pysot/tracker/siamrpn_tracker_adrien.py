@@ -72,8 +72,9 @@ class SiamRPNTracker(SiameseTracker):
         window = np.outer(hanning, hanning)     # 外積
         self.window = np.tile(window.flatten(), self.anchor_num)
 
+        # self.anchors: (anchor_num*25*25, 4) #corner
         self.anchors = self.generate_anchor(img_c=cfg.TRACK.INSTANCE_SIZE // 2,
-                                            score_size=self.score_size)    # (anchor_num*25*25, 4)
+                                            score_size=self.score_size)
 
         # self.anchors = Anchors(cfg.ANCHOR.STRIDE,
         #                        cfg.ANCHOR.RATIOS,
@@ -111,9 +112,8 @@ class SiamRPNTracker(SiameseTracker):
         # ori = - (cfg.TRAIN.SEARCH_SIZE // 2)
 
         ####################################################################
-        # === 使用 official model 要用這個！！ ===
-        # 這裡不能使用 anchors.generate_all_anchors() 是因為
-        # 產生出來的 anchor 排序會不一樣，而我一定要符合 officail model 產生出來的格式
+        # === 測試要用這個方式產生 anchor！！ ===
+        # 因為要和之後算 _convert_bbox() 的時候，“順序” 要一樣！！
         ####################################################################
         # 這個 ori 超級重要
         ori = img_c - score_size // 2 * stride
@@ -137,16 +137,7 @@ class SiamRPNTracker(SiameseTracker):
         # anchor[:, 1] = (anchor[:, 1] + anchor[:, 3]) * 0.5
         # anchor[:, 2] = (anchor[:, 2] - anchor[:, 0]) * 2
         # anchor[:, 3] = (anchor[:, 3] - anchor[:, 1]) * 2
-
-        # anchor = anchors.all_anchors[1]
-        # anchor = np.reshape(anchor, (4, -1))
-        # anchor = np.transpose(anchor, (1, 0))
-
-        # anchor = np.reshape(anchor, (11, 17, 17, 4))
-        # anchor = np.transpose(anchor, (3, 0, 1, 2))
-        # print(f"anhcor: {anchor[:, 0, 0, 0]}")
-
-        # ipdb.set_trace()
+        ipdb.set_trace()
 
         return anchor   # (5*25*25, 4), #center
 
@@ -160,7 +151,7 @@ class SiamRPNTracker(SiameseTracker):
         # (1, 4*5, 25, 25) -> (4*5, 25, 25, 1) -> contiguous -> (4, 5*25*25)
         delta = delta.permute(1, 2, 3, 0).contiguous().view(4, -1)
 
-        # xxx，到底為們麼要轉去 cpu 上面運算??
+        # ...，為甚麼要轉去 cpu 上面運算??
         delta = delta.data.cpu().numpy()
 
         delta[0, :] = delta[0, :] * anchor[:, 2] + anchor[:, 0]     # cx (real)，應該不是誤差了 (?)

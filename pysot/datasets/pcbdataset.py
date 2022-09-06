@@ -10,10 +10,11 @@ import time
 
 import cv2
 import numpy as np
+from pysot.pysot.datasets.pcb_crop_amy import PCBCropAmy
 import torch
 from pysot.core.config import cfg
 # from pysot.datasets.anchor_target import AnchorTarget
-from pysot.datasets.pcb_augmentation import Augmentation
+from pysot.pysot.datasets.pcb_crop import PCBCrop
 from pysot.utils.bbox import Center, Corner, center2corner
 from pysot.utils.check_image import draw_box, save_image
 # from torch.utils.data import Dataset
@@ -51,13 +52,13 @@ class PCBDataset():
         self.search = search
         self.max_num_box = self._find_max_num_box(self.search)    # targets 最多的數量
 
-        # data augmentation (preprocess)
-        self.template_aug = Augmentation(
+        # data PCBCrop (preprocess)
+        self.template_crop = PCBCropAmy(
             template_size=cfg.TRAIN.EXEMPLAR_SIZE,
             search_size=cfg.TRAIN.SEARCH_SIZE,
             type="template"
         )
-        self.search_aug = Augmentation(
+        self.search_crop = PCBCropAmy(
             template_size=cfg.TRAIN.EXEMPLAR_SIZE,
             search_size=cfg.TRAIN.SEARCH_SIZE,
             type="search"
@@ -65,7 +66,7 @@ class PCBDataset():
 
         self.template_bg = args.template_bg
         self.template_context_amount = args.template_context_amount
-        
+
         # self.search_aug = Augmentation(
         #         cfg.DATASET.SEARCH.SHIFT,
         #         cfg.DATASET.SEARCH.SCALE,
@@ -160,7 +161,7 @@ class PCBDataset():
         return max_num_boxes
     
     def get_image_anno(self, idx, arg):
-        """ 
+        """
         Return:
             imgage_path: 
             image_anno: 
@@ -219,16 +220,16 @@ class PCBDataset():
 
         ####################################################################
         # Step 2.
-        # process the template and search images
+        # crop the template and search images
         # -------------------------------------------------------
         # === 定義代號 ===
         # z: template
         # x: search
         ####################################################################
-        template_box = template[1]
+        template_box = template[1]    # template_box: (cx, cy, w, h) #ratio
         search_boxes = search[1]
 
-        template_image, template_ratio, _, _ = self.template_aug(
+        template_image, template_ratio, _, _ = self.template_crop(
             template_image,
             template_box,
             bg=self.template_bg,
@@ -236,7 +237,7 @@ class PCBDataset():
         )
 
         # gt_boxes ((x1, y1, x2, y2), num)
-        search_image, gt_boxes, _, _ = self.search_aug(
+        search_image, gt_boxes, _, _ = self.search_crop(
             search_image,
             search_boxes,
             ratio=template_ratio

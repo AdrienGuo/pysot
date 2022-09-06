@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from pysot.core.config import cfg
 from pysot.datasets.anchor_target import AnchorTarget
-from pysot.datasets.pcb_augmentation import Augmentation
+from pysot.pysot.datasets.pcb_crop import PCBCrop
 from pysot.utils.bbox import Center, Corner, center2corner
 from pysot.utils.check_image import draw_box, save_image
 from torch.utils.data import Dataset
@@ -60,13 +60,13 @@ class PCBDatasetTest():
         self.template = template
         self.search = search
 
-        self.template_aug = Augmentation(
+        self.template_crop = PCBCrop(
             template_size=cfg.TRACK.EXEMPLAR_SIZE,
             search_size=cfg.TRACK.INSTANCE_SIZE,
             type="template"
         )
 
-        self.search_aug = Augmentation(
+        self.search_crop = PCBCrop(
             template_size=cfg.TRACK.EXEMPLAR_SIZE,
             search_size=cfg.TRACK.INSTANCE_SIZE,
             type="search"
@@ -297,9 +297,9 @@ class PCBDatasetTest():
 
         ####################################################################
         # Step 2.
-        # process the template and search images
+        # crop the template and search images
         ####################################################################
-        template_image, template_ratio, template_box, origin_template_box = self.template_aug(
+        template_image, template_ratio, template_box, origin_template_box = self.template_crop(
             template_image,
             template_box,
             bg=self.template_bg,
@@ -307,7 +307,7 @@ class PCBDatasetTest():
         )
 
         # gt_boxes ((x1, y1, x2, y2), num)
-        search_image, gt_boxes, r, spatium = self.search_aug(
+        search_image, gt_boxes, r, spatium = self.search_crop(
             search_image,
             search_bbox,
             ratio=template_ratio
@@ -473,12 +473,12 @@ class PCBDatasetTest():
         
         # """ 
         # # (image, bbox) is the return data type
-        # template_image, _ = self.template_aug(template_image,
+        # template_image, _ = self.template_crop(template_image,
         #                                 template_box,
         #                                 cfg.TRAIN.EXEMPLAR_SIZE,
         #                                 gray=gray)
 
-        # search_image, bbox = self.search_aug(search_image,
+        # search_image, bbox = self.search_crop(search_image,
         #                                search_box,
         #                                cfg.TRAIN.SEARCH_SIZE,
         #                                gray=gray)

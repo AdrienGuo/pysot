@@ -28,11 +28,11 @@ from torchvision import transforms
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
-parser.add_argument('--template_bg', type=str, help='whether crop template with bg')
-parser.add_argument('--template_context_amount', type=float, help='how much bg for template')
 parser.add_argument('--config', default='', type=str, help='config file')
 parser.add_argument('--dataset', type=str, help='datasets')
 parser.add_argument('--annotation', type=str, help='annotation for testing')
+parser.add_argument('--template_bg', type=str, help='whether crop template with bg')
+parser.add_argument('--template_context_amount', type=float, help='how much bg for template')
 parser.add_argument('--save_dir', type=str, help='save to which directory')
 # parser.add_argument('--video', default='', type=str, help='eval one special video')
 # parser.add_argument('--vis', action='store_true', help='whether visualzie result')
@@ -191,8 +191,6 @@ def test(test_loader, tracker, dir):
         scale_ratio = data['r'][0].cpu().numpy()
         spatium = [x.cpu().item() for x in data['spatium']]
 
-        ipdb.set_trace()
-
         ####################################################################
         # load image
         ####################################################################
@@ -313,6 +311,7 @@ def test(test_loader, tracker, dir):
         # save template image to ./results/images/{image_name}/template/{idx}.jpg
         ####################################################################
         tic = cv2.getTickCount()
+
         # 用 template image 將 tracker 初始化
         z_img = tracker.init(template_image, template_box)
         z_img = np.transpose(z_img, (1, 2, 0))        # (3, 127, 127) -> (127, 127, 3)
@@ -326,6 +325,9 @@ def test(test_loader, tracker, dir):
         # 用 search image 進行 "track" 的動作
         outputs = tracker.track(image, search_image, scale_ratio, spatium)
 
+        toc = cv2.getTickCount()
+        clocks += toc - tic    # 總共有多少個 clocks (clock cycles)
+
         scores = np.around(outputs['top_scores'], decimals=2)
         # === pred_boxes on "search" image ===
         for box in outputs['pred_boxes']:
@@ -335,8 +337,6 @@ def test(test_loader, tracker, dir):
         for origin_box in outputs['origin_pred_boxes']:
             origin_box = np.around(origin_box, decimals=2)
             origin_pred_boxes.append(origin_box)
-        toc = cv2.getTickCount()
-        clocks += toc - tic    # 總共有多少個 clocks (clock cycles)
 
         # save search image
         x_img = outputs['x_img']
@@ -393,8 +393,6 @@ def test(test_loader, tracker, dir):
 
         print("=" * 20)
 
-        ipdb.set_trace()
-
     period = clocks / cv2.getTickFrequency()
     fps = idx / period
     print(f"Speed: {fps} fps")
@@ -412,11 +410,11 @@ if __name__ == "__main__":
     model = ModelBuilder()
     # load model
     model = load_pretrain(model, args.model).cuda().eval()
+    print(f"load model from: {args.model}")
 
     # model_name = args.model.split("/")[2].split(".")[0]
     model_name = args.model.split('/')[-2]
     print(f"model_name: {model_name}")
-    print(f"load model from: {args.model}")
 
     # build tracker
     tracker = build_tracker(model)
@@ -424,6 +422,8 @@ if __name__ == "__main__":
     dir = os.path.join(args.save_dir, model_name)
     if not os.path.isdir(dir):
         os.makedirs(dir)
+    print(f"test results saved in: {dir}")
+
     test(test_loader, tracker, dir)
 
-    print("="*20, "Done!", "="*20, "\n")
+    print("=" * 20, "Done!", "=" * 20, "\n")

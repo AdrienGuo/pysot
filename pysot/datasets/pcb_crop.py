@@ -96,7 +96,7 @@ def crop_method(image, bbox, context_amount=0.5, exemplar_size=127, instance_siz
     return z
 
 
-class Augmentation:
+class PCBCrop:
     def __init__(self, template_size, search_size, type) -> None:
         self.template_size = template_size
         self.search_size = search_size
