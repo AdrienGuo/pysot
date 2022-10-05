@@ -17,6 +17,17 @@ BBox = Corner
 Center = namedtuple('Center', 'x y w h')
 
 
+def ratio2real(image, box):
+    h, w = image.shape[:2]
+
+    box[:, 0] = box[:, 0] * w
+    box[:, 1] = box[:, 1] * h
+    box[:, 2] = box[:, 2] * w
+    box[:, 3] = box[:, 3] * h
+
+    return box
+
+
 def corner2center(corner):
     """ convert (x1, y1, x2, y2) to (cx, cy, w, h)
     Args:
@@ -42,17 +53,24 @@ def center2corner(center):
         center: Center or np.array (4 * N)
     Return:
         center or np.array (4 * N)
+               or np.array (N * 4)
     """
     if isinstance(center, Center):
         x, y, w, h = center
         return Corner(x - w * 0.5, y - h * 0.5, x + w * 0.5, y + h * 0.5)
-    else:
+    elif isinstance(center, list):
         x, y, w, h = center[0], center[1], center[2], center[3]
         x1 = x - w * 0.5
         y1 = y - h * 0.5
         x2 = x + w * 0.5
         y2 = y + h * 0.5
         return x1, y1, x2, y2
+    elif isinstance(center, np.ndarray):
+        center[:, 0] = center[:, 0] - center[:, 2] * 0.5    # x1
+        center[:, 1] = center[:, 1] - center[:, 3] * 0.5    # y1
+        center[:, 2] = center[:, 0] + center[:, 2]    # x2 = x1 + w
+        center[:, 3] = center[:, 1] + center[:, 3]    # y2 = y1 + h
+        return center    # (N, 4)
 
 
 def target_overlaps(anchor, target):

@@ -14,9 +14,9 @@ import cv2
 import numpy as np
 import torch
 from pysot.core.config import cfg
-from pysot.datasets.anchor_target import AnchorTarget
-from pysot.pysot.datasets.pcb_crop import PCBCrop
-from pysot.utils.bbox import Center, Corner, center2corner
+from pysot.pysot.datasets._anchor_target import AnchorTarget
+from pysot.pysot.datasets.pcb_crop_new import PCBCrop
+from pysot.pysot.utils._bbox import Center, Corner, center2corner
 from pysot.utils.check_image import draw_box, save_image
 from torch.utils.data import Dataset
 

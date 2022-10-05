@@ -1,5 +1,6 @@
 import math
 
+import ipdb
 import torch
 import torch.nn as nn
 from pysot.core.config import cfg
@@ -55,6 +56,8 @@ class BasicBlock(nn.Module):
 
         out += residual
         out = self.relu(out)
+        assert (out[out < 0].numel() == 0), \
+            "Error, negative value in feature map!!"
 
         return out
 
@@ -96,6 +99,8 @@ class Bottleneck(nn.Module):
         out = self.conv2(out)
         out = self.bn2(out)
         out = self.relu(out)
+        assert (out[out < 0].numel() == 0), \
+            "Error, negative value in feature map!!"
 
         out = self.conv3(out)
         out = self.bn3(out)
@@ -106,6 +111,8 @@ class Bottleneck(nn.Module):
         out += residual
 
         out = self.relu(out)
+        assert (out[out < 0].numel() == 0), \
+            "Error, negative value in feature map!!"
 
         return out
 
@@ -194,6 +201,11 @@ class ResNet(nn.Module):
         p4 = self.layer4(p3)
         out = [x_, p1, p2, p3, p4]
         out = [out[i] for i in self.used_layers]
+        for i in range(len(out)):
+            tmp = out[i]
+            assert (tmp[tmp < 0].numel() == 0), \
+                "Error, negative value in feature map!!"
+
         if len(out) == 1:
             return out[0]
         else:

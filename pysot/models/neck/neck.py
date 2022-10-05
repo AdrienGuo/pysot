@@ -14,6 +14,10 @@ class AdjustLayer(nn.Module):
         self.downsample = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels),
+            # 這裡可以不用加 relu，因為之後還會做 rpn head，
+            # 裡面還是有 relu，然後才會去 XCorr
+            # P.S. 有做過實驗，加和不加跑出來的 loss 曲線幾乎一模一樣
+            # setting: x255_new_bg1_k11_e200_b32
         )
         self.center_size = center_size
 
@@ -30,6 +34,9 @@ class AdjustLayer(nn.Module):
             l = (x.size(3) - self.center_size) // 2
             r = l + self.center_size
             x = x[:, :, l:r, l:r]
+        # 可以不用加 relu，原因如上
+        # assert (x[x < 0].numel() == 0), \
+        #     "Error, negative value in feature map!!"
         return x
 
 

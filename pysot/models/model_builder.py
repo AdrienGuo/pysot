@@ -16,9 +16,6 @@ from pysot.models.loss import select_cross_entropy_loss, weight_l1_loss
 from pysot.models.neck import get_neck
 from pysot.rpn.anchor_target import AnchorTarget
 
-# debug mode
-DEBUG = cfg.DEBUG
-
 
 class ModelBuilder(nn.Module):
     def __init__(self):
@@ -97,30 +94,35 @@ class ModelBuilder(nn.Module):
         ####################################################################
         # 拿資料
         ####################################################################
-        template = data['template_image'].cuda()
-        search = data['search_image'].cuda()
-        gt_boxes = data['gt_boxes'].cuda()
+        z_img = data['z_img'].cuda()
+        x_img = data['x_img'].cuda()
+        gt_boxes_padding = data['gt_boxes_padding'].cuda()
         image_name = data['image_name'][0]
         idx = data['idx'][0]
 
         ####################################################################
         # get labels of cls, loc, weight
         ####################################################################
-        label_cls, label_loc, label_loc_weight, _ = self.anchor_target(gt_boxes, self.output_size, image_name=image_name, idx=idx)
+        label_cls, label_loc, label_loc_weight, _ = self.anchor_target(
+            gt_boxes_padding,
+            self.output_size,
+            image_name=image_name,
+            idx=idx
+        )
 
         ####################################################################
         # get feature maps
         ####################################################################
         # out = [out[i] for i in self.used_layers]
-        zf = self.backbone(template)
-        xf = self.backbone(search)
+        zf = self.backbone(z_img)
+        xf = self.backbone(x_img)
         if cfg.MASK.MASK:
             zf = zf[-1]
             self.xf_refine = xf[:-1]
             xf = xf[-1]
         if cfg.ADJUST.ADJUST:
-            zf = self.neck(zf)    # [(b, c, 7, 7), (), ]
-            xf = self.neck(xf)    # [(b, c, 31, 31), (), ]
+            zf = self.neck(zf)    # ((b, c, 7, 7), (), ) #list
+            xf = self.neck(xf)    # ((b, c, 31, 31), (), ) #list
 
         ####################################################################
         # get preds of cls, loc
@@ -131,7 +133,7 @@ class ModelBuilder(nn.Module):
         ####################################################################
         # calculate loss of cls, loc
         ####################################################################
-        cls = self.log_softmax(cls)     # cls (b, 5, 25, 25, 2)
+        cls = self.log_softmax(cls)     # cls: (b, 5, 25, 25, 2)
         cls_loss = select_cross_entropy_loss(cls, label_cls)
         loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)
 

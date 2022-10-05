@@ -3,7 +3,7 @@ from __future__ import (absolute_import, division, print_function,
 
 import cv2
 import numpy as np
-from pysot.utils.bbox import Center, Corner, center2corner, corner2center
+from pysot.pysot.utils._bbox import Center, Corner, center2corner, corner2center
 
 
 def template_crop(image, bbox, size):

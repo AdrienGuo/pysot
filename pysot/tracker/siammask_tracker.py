@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 
 from pysot.core.config import cfg
-from pysot.utils.bbox import cxy_wh_2_rect
+from pysot.pysot.utils._bbox import cxy_wh_2_rect
 from pysot.tracker.siamrpn_tracker import SiamRPNTracker
 
 

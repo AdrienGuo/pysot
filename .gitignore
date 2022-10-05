@@ -5,9 +5,12 @@
 *.png
 *.model
 pysot/datasets/adrien.code-workspace
-training_dataset/vid/ILSVRC2015*
 training_dataset/vid/vid.json
 
+datasets/
+training_dataset/vid/ILSVRC2015*
+testing_dataset/
+croped_image/
 training_dataset/coco/
 data/
 image_check/
@@ -17,7 +20,6 @@ pretrained_models/
 wandb/
 snapshot/
 save_models/
-testing_dataset/
 training_logs/
 tf/
 kmeans/demo/

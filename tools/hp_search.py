@@ -11,7 +11,7 @@ from toolkit.datasets import DatasetFactory
 from toolkit.utils.region import vot_overlap, vot_float2str
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
-from pysot.utils.bbox import get_axis_aligned_bbox
+from pysot.pysot.utils._bbox import get_axis_aligned_bbox
 from pysot.utils.model_load import load_pretrain
 from pysot.core.config import cfg
 

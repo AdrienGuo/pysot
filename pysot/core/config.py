@@ -39,14 +39,14 @@ __C.TRAIN.TOTAL_NUM = 64
 __C.TRAIN.ALLOWED_BORDER = 0
 
 __C.TRAIN.EXEMPLAR_SIZE = 127
-__C.TRAIN.SEARCH_SIZE = 600
+__C.TRAIN.SEARCH_SIZE = 255
 __C.TRAIN.BASE_SIZE = 8
 
 # 這邊都要手動調整，真的超蠢...
 # 而且因為還會在 neck.py 裏面做裁切，要全部都自動計算又更麻煩了
 # 他們原始的 code 真的是很難用誒
-# __C.TRAIN.OUTPUT_SIZE = 25    # template: 127, search: 255, crop
-__C.TRAIN.OUTPUT_SIZE = 68    # template: 127, search: 600, crop
+__C.TRAIN.OUTPUT_SIZE = 25    # template: 127, search: 255, crop
+# __C.TRAIN.OUTPUT_SIZE = 68    # template: 127, search: 600, crop
 
 __C.TRAIN.RESUME = ''
 
@@ -55,7 +55,7 @@ __C.TRAIN.PRETRAINED = ''
 
 __C.TRAIN.LOG_DIR = './logs'
 __C.TRAIN.MODEL_DIR = './save_models'
-__C.TRAIN.NUM_WORKERS = 8
+__C.TRAIN.NUM_WORKERS = 0
 __C.TRAIN.SAVE_MODEL_FREQ = 20
 
 __C.TRAIN.START_EPOCH = 0
@@ -97,7 +97,7 @@ __C.TRAIN.LR_WARMUP.KWARGS = CN(new_allowed=True)
 # ------------------------------------------------------------------------ #
 __C.DATASET = CN(new_allowed=True)
 
-# validation_split
+# validation_split ratio
 __C.DATASET.VALIDATION_SPLIT = 0.1
 
 # Augmentation
@@ -241,8 +241,8 @@ __C.ANCHOR.RATIOS = [0.33, 0.5, 1, 2, 3]
 __C.ANCHOR.SCALES = [8]
 # Anchor number
 # __C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
-__C.ANCHOR.ANCHOR_NUM = 5
-# __C.ANCHOR.ANCHOR_NUM = 11
+# __C.ANCHOR.ANCHOR_NUM = 5
+__C.ANCHOR.ANCHOR_NUM = 11
 
 
 # ------------------------------------------------------------------------ #
@@ -264,8 +264,8 @@ __C.TRACK.LR = 0.4
 # Exemplar size
 __C.TRACK.EXEMPLAR_SIZE = 127
 # Instance size
-# __C.TRACK.INSTANCE_SIZE = 255
-__C.TRACK.INSTANCE_SIZE = 600
+__C.TRACK.INSTANCE_SIZE = 255
+# __C.TRACK.INSTANCE_SIZE = 600
 
 # Base size
 __C.TRACK.BASE_SIZE = 8

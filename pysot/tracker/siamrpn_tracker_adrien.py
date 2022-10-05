@@ -3,18 +3,19 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import copy
+
 import cv2
 import ipdb
-import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
 # from PIL import Image
 from pysot.core.config import cfg
-from pysot.tracker.base_tracker import SiameseTracker
 # from pysot.utils.anchor import Anchors
 from pysot.rpn.anchor import Anchors
+from pysot.tracker.base_tracker import SiameseTracker
 from torchvision import transforms
 
 from .transform_amy import get_transforms
@@ -137,7 +138,6 @@ class SiamRPNTracker(SiameseTracker):
         # anchor[:, 1] = (anchor[:, 1] + anchor[:, 3]) * 0.5
         # anchor[:, 2] = (anchor[:, 2] - anchor[:, 0]) * 2
         # anchor[:, 3] = (anchor[:, 3] - anchor[:, 1]) * 2
-        ipdb.set_trace()
 
         return anchor   # (5*25*25, 4), #center
 
@@ -298,6 +298,7 @@ class SiamRPNTracker(SiameseTracker):
         outputs = self.model.track(x_img)                         # (1, 2*anchor_num, 25, 25)
 
         scores = self._convert_score(outputs['cls'])                     # (anchor_num*25*25, )
+        # pred_bboxes: (num, [cx, cy, w, h])
         pred_bboxes = self._convert_bbox(outputs['loc'], self.anchors)    # (4, anchor_num*25*25)
 
         ####################################################################
@@ -320,7 +321,7 @@ class SiamRPNTracker(SiameseTracker):
                      (pred_bboxes[2, :]/pred_bboxes[3, :]))
         penalty = np.exp(-(r_c * s_c - 1) * cfg.TRACK.PENALTY_K)
         pscore = penalty * scores
-        
+
         # window penalty
         pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
             self.window * cfg.TRACK.WINDOW_INFLUENCE
@@ -344,43 +345,34 @@ class SiamRPNTracker(SiameseTracker):
             # lr = penalty[nms_bboxes[i]] * scores[nms_bboxes[i]] * cfg.TRACK.LR
             score = scores[nms_bboxes[i]]
             if score >= 0.5:
+                w = pred_box[2]
+                h = pred_box[3]
+                x1 = pred_box[0] - w / 2
+                y1 = pred_box[1] - h / 2
+                x2 = pred_box[0] + w / 2
+                y2 = pred_box[1] + h / 2
+                # 超出圖片的 pred_box 捨棄
+                if ((x1 < 0) or (y1 < 0)
+                    or (x2 > cfg.TRACK.INSTANCE_SIZE) or (y2 > cfg.TRACK.INSTANCE_SIZE)):
+                    continue
                 top_scores.append(score)
-                cx = pred_box[0] # s+ self.center_pos[0]
-                cy = pred_box[1] # + self.center_pos[1]
-                #cx = pred_box[0]*x_img.shape[1]
-                #cy = pred_box[1]*x_img.shape[0]
-                #print(":",lr)
-                width = pred_box[2]    #self.size[0] * (1 - lr) + pred_box[2] * lr
-                height = pred_box[3]   #self.size[1] * (1 - lr) + pred_box[3] * lr
 
-                #width = pred_box[2]#*x_img.shape[1]
-                #height = pred_box[3]#*x_img.shape[0]
-
-                # clip boundary
-                # print(f"cx: {cx}")
-                # print(f"cy: {cy}")
-                # print(f"width: {width}")
-                # print(f"height: {height}")
-                # ipdb.set_trace()
                 # cx, cy, width, height = self._bbox_clip(cx, cy, width, height, x_img.shape[:2])
 
                 # === pred_box on "search" image
-                pred_box = [cx - width / 2,
-                            cy - height / 2,
-                            width,
-                            height]
+                pred_box = [x1, y1, w, h]
                 pred_boxes.append(pred_box)
 
                 # === pred_box on "original" image
-                origin_pred_box = copy.deepcopy(pred_box)
-                origin_pred_box[2] = origin_pred_box[0] + origin_pred_box[2]    # w -> x2
-                origin_pred_box[3] = origin_pred_box[1] + origin_pred_box[3]    # h -> y2
-                origin_pred_box = search2origin(origin_pred_box, scale_ratio, spatium)    # origin_pred_box (x1, y1, x2, y2)
-                origin_pred_box = [origin_pred_box[0],
-                                   origin_pred_box[1],
-                                   origin_pred_box[2] - origin_pred_box[0],
-                                   origin_pred_box[3] - origin_pred_box[1]]
-                origin_pred_boxes.append(origin_pred_box)
+                # origin_pred_box = copy.deepcopy(pred_box)
+                # origin_pred_box[2] = origin_pred_box[0] + origin_pred_box[2]    # w -> x2
+                # origin_pred_box[3] = origin_pred_box[1] + origin_pred_box[3]    # h -> y2
+                # origin_pred_box = search2origin(origin_pred_box, scale_ratio, spatium)    # origin_pred_box (x1, y1, x2, y2)
+                # origin_pred_box = [origin_pred_box[0],
+                #                    origin_pred_box[1],
+                #                    origin_pred_box[2] - origin_pred_box[0],
+                #                    origin_pred_box[3] - origin_pred_box[1]]
+                # origin_pred_boxes.append(origin_pred_box)
             else:
                 continue
 

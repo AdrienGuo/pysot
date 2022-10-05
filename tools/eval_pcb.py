@@ -4,32 +4,33 @@ from __future__ import (absolute_import, annotations, division, print_function,
 
 import argparse
 import os
+import time
 
 import cv2
 import ipdb
-import time
 import matplotlib.pyplot as plt
 import numpy as np
-from toolkit.utils.statistics import overlap_ratio_one
-from pysot.utils.check_image import draw_preds, save_image
 import torch
 import torchvision.transforms.functional as F
 from PIL import Image, ImageDraw, ImageFont
 from pysot.core.config import cfg
-from pysot.datasets.pcbdataset_test import PCBDatasetTest
+# === 這裡選擇要老師 or 亭儀的裁切出來的資料集 ===
+from pysot.datasets.pcbdataset_new import PCBDataset
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
 from pysot.utils.bbox import get_axis_aligned_bbox
+from pysot.utils.check_image import draw_preds, save_image
 from pysot.utils.model_load import load_pretrain
 from toolkit.datasets import DatasetFactory
 from toolkit.utils.region import vot_float2str, vot_overlap
+from toolkit.utils.statistics import overlap_ratio_one
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
-parser.add_argument('--template_bg', type=str, help='whether crop template with bg')
-parser.add_argument('--template_context_amount', type=float, help='how much bg for template')
+parser.add_argument('--crop_method', default='', type=str, help='teacher / amy')
+parser.add_argument('--bg', type=str, nargs='?', const='', help='background')
 parser.add_argument('--config', default='', type=str, help='config file')
 parser.add_argument('--dataset', type=str, help='datasets')
 parser.add_argument('--annotation', type=str, help='annotation for testing')
@@ -95,47 +96,45 @@ def evaluate(test_loader, tracker):
     with torch.no_grad():
         for idx, data in enumerate(test_loader):
             image_path = data['image_path'][0]
-            template = data['template_box'][0]
-            template_image = data['template_image'].cuda()
-            search_image = data['search_image'].cuda()
-            gt_boxes = data['gt_boxes'].cuda()    # 用在算 precision, recall
-            scale_ratio = data['r'][0].cpu().numpy()
+            z_box = data['z_box'][0]    # 不要 batch
+            z_img = data['z_img'].cuda()
+            x_img = data['x_img'].cuda()
+            gt_boxes = data['gt_boxes'][0]    # 用在算 precision, recall
+            scale = data['scale'][0].cpu().numpy()
             spatium = [x.cpu().item() for x in data['spatium']]
             # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
 
-            print(f"load image from: {image_path}")
+            print(f"Load image from: {image_path}")
             image = cv2.imread(image_path)
 
-            ####################################################################
-            # pred_boxes, scores
-            ####################################################################
-            template_box = template.cpu().numpy().squeeze()
+            ######################################
+            # 調整 z_box, gt_boxes
+            # (x1, y1, x2, y2) -> (x1, y1, w, h)
+            ######################################
+            z_box = z_box.cpu().numpy().squeeze()
+            z_box[2] = z_box[2] - z_box[0]
+            z_box[3] = z_box[3] - z_box[1]
+            # z_box = np.around(z_box, decimals=2)
 
-            # template_box: (x1, y1, x2, y2) -> (x1, y1, w, h)
-            template_box = [
-                template_box[0],
-                template_box[1],
-                template_box[2] - template_box[0],
-                template_box[3] - template_box[1]
-            ]
-            template_box = np.around(template_box, decimals=2)
+            gt_boxes = gt_boxes.cpu().numpy()
+            gt_boxes[:, 2] = gt_boxes[:, 2] - gt_boxes[:, 0]
+            gt_boxes[:, 3] = gt_boxes[:, 3] - gt_boxes[:, 1]
 
-            ####################################################################
-            # init tracker
-            # save template image to ./results/images/{image_name}/template/{idx}.jpg
-            ####################################################################
+            ######################################
+            # Init tracker
+            ######################################
             # tic = cv2.getTickCount()
             start = time.time()
 
             # 用 template image 將 tracker 初始化
             # z_crop = tracker.init(image, gt_box)
-            _ = tracker.init(template_image, template_box)
+            _ = tracker.init(z_img, z_box)
 
-            ####################################################################
-            # tracking
-            ####################################################################
+            ######################################
+            # Do tracking
+            ######################################
             # 用 search image 進行 "track" 的動作
-            outputs = tracker.track(image, search_image, scale_ratio, spatium)
+            outputs = tracker.track(image, x_img, scale, spatium)
 
             # toc = cv2.getTickCount()
             # clocks += toc - tic    # 總共有多少個 clocks (clock cycles)
@@ -145,7 +144,7 @@ def evaluate(test_loader, tracker):
 
             pred_scores.append(outputs['top_scores'])
             pred_boxes.append(outputs['pred_boxes'])
-            label_boxes.append(gt_boxes[0].cpu().tolist())    # gt_boxes[0], 不要 batch
+            label_boxes.append(gt_boxes.tolist())    # gt_boxes[0], 不要 batch
 
             # calculate_metrics([outputs['top_scores']], [outputs['pred_boxes']], [gt_boxes[0].cpu().tolist()])
         precision, recall = calculate_metrics(pred_scores, pred_boxes, label_boxes)
@@ -158,7 +157,7 @@ def evaluate(test_loader, tracker):
 
 
 if __name__ == "__main__":
-    test_dataset = PCBDatasetTest(args)
+    test_dataset = PCBDataset(args)
     test_loader = DataLoader(test_dataset,
                              batch_size=1,    # 只能設 1
                              num_workers=0)

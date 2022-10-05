@@ -100,15 +100,19 @@ def _get_local_ip():
 
 def dist_init():
     global rank, world_size, inited
-    try:
-        rank, world_size = _dist_init()
-    except RuntimeError as e:
-        if 'public' in e.args[0]:
-            logger.info(e)
-            logger.info('Warning: use single process')
-            rank, world_size = 0, 1
-        else:
-            raise RuntimeError(*e.args)
+    # 這裡在同時 train 兩個程式時會出錯，
+    # 參考亭儀的作法，她把這裡註解掉，直接回傳 rank, world_size
+    # (跳過問題，就沒有問題了 xd)
+    # try:
+    #     rank, world_size = _dist_init()
+    # except RuntimeError as e:
+    #     if 'public' in e.args[0]:
+    #         logger.info(e)
+    #         logger.info('Warning: use single process')
+    #         rank, world_size = 0, 1
+    #     else:
+    #         raise RuntimeError(*e.args)
+    rank, world_size = 0, 1
     inited = True
     return rank, world_size
 

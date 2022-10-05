@@ -14,9 +14,9 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from pysot.utils.bbox import center2corner, Center
-from pysot.datasets.anchor_target import AnchorTarget
-from pysot.datasets.augmentation import Augmentation
+from pysot.pysot.utils._bbox import center2corner, Center
+from pysot.pysot.datasets._anchor_target import AnchorTarget
+from pysot.pysot.datasets._augmentation import Augmentation
 from pysot.core.config import cfg
 
 

@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 from pysot.core.config import cfg
 from pysot.rpn.anchor import Anchors
-from pysot.rpn.bbox import bbox_overlaps_batch, bbox_transform_batch
+from pysot.rpn.bbox_transform import bbox_overlaps_batch, bbox_transform_batch
 from pysot.utils.check_image import draw_box, save_image
 
 DEBUG = cfg.DEBUG
