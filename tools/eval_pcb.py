@@ -4,6 +4,7 @@ from __future__ import (absolute_import, annotations, division, print_function,
 
 import argparse
 import os
+import random
 import time
 
 import cv2
@@ -24,16 +25,23 @@ from pysot.utils.model_load import load_pretrain
 from toolkit.datasets import DatasetFactory
 from toolkit.utils.region import vot_float2str, vot_overlap
 from toolkit.utils.statistics import overlap_ratio_one
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
 parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
-parser.add_argument('--crop_method', default='', type=str, help='teacher / amy')
+parser.add_argument('--crop_method', type=str, help='teachr / amy')
 parser.add_argument('--bg', type=str, nargs='?', const='', help='background')
-parser.add_argument('--config', default='', type=str, help='config file')
-parser.add_argument('--dataset', type=str, help='datasets')
-parser.add_argument('--annotation', type=str, help='annotation for testing')
+parser.add_argument('--neg', type=float, help='negative sample ratio')
+parser.add_argument('--anchors', type=int, help='number of anchors')
+parser.add_argument('--epoch', type=int, help='epoch')
+parser.add_argument('--batch_size', type=int, help='batch size')
+parser.add_argument('--dataset_path', type=str, help='training dataset path')
+parser.add_argument('--dataset_name', type=str, help='training dataset name')
+parser.add_argument('--criteria', type=str, help='sample criteria for dataset')
+parser.add_argument('--cfg', type=str, default='config.yaml', help='configuration of tracking')
+parser.add_argument('--seed', type=int, default=123456, help='random seed')
+parser.add_argument('--local_rank', type=int, default=0, help='compulsory for pytorch launcer')
 args = parser.parse_args()
 
 torch.set_num_threads(1)
@@ -64,7 +72,7 @@ def calculate_metrics(pred_scores, pred_boxes, label_boxes):
                 iou = overlap_ratio_one(pred_boxes[idx][pred_idx], label_boxes[idx][label_idx])
                 if iou > best_iou:
                     best_iou = iou
-            # 所有我預測的 pred_boxes，他們都已經是 positive 了；而且不是 true (tp) 就是 false (fp)
+            # 所有預測出來的 pred_boxes，他們都已經是 positive 了；而且不是 true (tp) 就是 false (fp)
             if best_iou >= 0.5:
                 tp_one[pred_idx] = 1
             else:
@@ -88,14 +96,14 @@ def evaluate(test_loader, tracker):
     pred_boxes = list()
     pred_classes = list()
     label_boxes = list()
-    label_classes = list
+    label_classes = list()
 
     clocks = 0
     period = 0
 
     with torch.no_grad():
         for idx, data in enumerate(test_loader):
-            image_path = data['image_path'][0]
+            img_path = data['img_path'][0]
             z_box = data['z_box'][0]    # 不要 batch
             z_img = data['z_img'].cuda()
             x_img = data['x_img'].cuda()
@@ -104,8 +112,8 @@ def evaluate(test_loader, tracker):
             spatium = [x.cpu().item() for x in data['spatium']]
             # cls = [torch.from_numpy(cls).cuda() for cls in data['cls']]
 
-            print(f"Load image from: {image_path}")
-            image = cv2.imread(image_path)
+            # print(f"Load image from: {img_path}")
+            image = cv2.imread(img_path)
 
             ######################################
             # 調整 z_box, gt_boxes
@@ -155,23 +163,54 @@ def evaluate(test_loader, tracker):
         fps = idx / period
         print(f"Speed: {fps} fps")
 
+        return {
+            "precision": precision,
+            "recall": recall,
+            "fps": fps
+        }
+
 
 if __name__ == "__main__":
-    test_dataset = PCBDataset(args)
-    test_loader = DataLoader(test_dataset,
-                             batch_size=1,    # 只能設 1
-                             num_workers=0)
+    cfg.merge_from_file(args.cfg)        # 不加 ModelBuilder() 會出問題ㄟ??
 
-    cfg.merge_from_file(args.config)        # 不加 ModelBuilder() 會出問題ㄟ??
+    test_dataset = PCBDataset(args, "eval")
+    print(f"Dataset number: {len(test_dataset)}")
 
-    # create model
+    # train_dataset = PCBDataset(args, "train")
+    # val_dataset = PCBDataset(args, "val")
+
+    # split train & val dataset
+    # dataset_size = len(train_dataset)
+    # indices = list(range(dataset_size))
+    # random.seed(42)
+    # random.shuffle(indices)
+    # split = dataset_size - int(np.floor(0.1 * dataset_size))
+    # train_indices, val_indices = indices[:split], indices[split:]
+    # train_dataset = Subset(train_dataset, train_indices)
+    # val_dataset = Subset(val_dataset, val_indices)
+
+    # train_loader = DataLoader(
+    #     train_dataset,
+    #     batch_size=1,
+    #     num_workers=0
+    # )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=1,    # 只能設 1
+        num_workers=0
+    )
+
+    # Create model
     model = ModelBuilder()
-    # load model
+    # Load model
     model = load_pretrain(model, args.model).cuda().eval()
 
-    # build tracker
+    # Build tracker
     tracker = build_tracker(model)
 
-    evaluate(test_loader, tracker)
+    # evaluate(test_loader, tracker)
+    print("Start evaluating...")
+    metrics = evaluate(test_loader, tracker)
 
     print("=" * 20, "Done!", "=" * 20, "\n")

@@ -14,30 +14,31 @@ import ipdb
 import numpy as np
 import torch
 import torch.nn as nn
-import wandb
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from pysot.core.config import cfg
-from pysot.datasets.pcbdataset_old import PCBDataset
+from pysot.datasets.pcbdataset_new import PCBDataset
+from torch.utils.data import DataLoader
 
 from kmeans.kmean import AnchorKmeans
 
 parser = argparse.ArgumentParser(description='find anchors by k-means')
 parser.add_argument('--crop_method', default='', type=str, help='teacher / amy')
-parser.add_argument('--bg', type=str, nargs='?', const='', help='background')
+parser.add_argument('--bg', type=str, default=1, nargs='?', const='', help='background')
+parser.add_argument('--neg', type=float, default=0, help='useless')
 parser.add_argument('--anchors', type=int, help='number of anchors')
 parser.add_argument('--config', default='', type=str, help='config file')
-parser.add_argument('--dataset', type=str, help='datasets')
-parser.add_argument('--annotation', type=str, help='annotation for testing')
+parser.add_argument('--dataset_path', type=str, help='datasets path')
+parser.add_argument('--dataset_name', type=str, help='datasets name')
+parser.add_argument('--criteria', type=str, help='sample criteria for dataset')
 args = parser.parse_args()
-
 
 plt.style.use('ggplot')
 
 # k value: number of anchor you want
 choose_k = args.anchors
 
-anchor_paper = np.array(
+anchor_official = np.array(
     [[104, 32],
      [88, 40],
      [64, 64],
@@ -46,16 +47,15 @@ anchor_paper = np.array(
 )
 
 
-####################################################################
-# visualizing default anchors
-####################################################################
+##################################################
+# Visualize anchors
+##################################################
 def visualize_anchors(anchors, size, name):
     """
-    Parameters:
+    Args:
         anchors: (n, 2)
     """
     anchors = np.round(anchors).astype(int)
-
     rects = np.empty((anchors.shape[0], 4), dtype=int)
     for i in range(len(anchors)):
         w, h = anchors[i]
@@ -73,50 +73,97 @@ def visualize_anchors(anchors, size, name):
     plt.xlabel("width")
     plt.ylabel("height")
     ax = plt.gca()
-    ax.set_aspect(1)    # 讓 x, y 他成正比
+    ax.set_aspect(1)    # 讓 x, y 軸成正比
 
     save_path = f"./kmeans/demo/{name}.jpg"
     plt.savefig(save_path)
-    print(f"save visualizing-anchors plot to: {save_path}")
+    print(f"Save visualizing-anchors plot to: {save_path}")
 
 
-####################################################################
-# get all the z_box (template) on search image
-####################################################################
+##################################################
+# Get all the z_box (template) on search image
+##################################################
 cfg.merge_from_file("./experiments/siamrpn_r50_l234_dwxcorr/config.yaml")
-dataset = PCBDataset(args)
+dataset = PCBDataset(args, "val")
+data_loader = DataLoader(
+    dataset,
+    batch_size=1,
+    num_workers=16
+)
+print("--- Build dataset done ---")
 
+print("Processing data...")
 boxes = list()
-for i in range(len(dataset)):
-    # data: (1, [x1, y1, x2, y2])
-    data = dataset[i]
+for idx, data in enumerate(data_loader):
+    # data["z_box"]: (1, [x1, y1, x2, y2])
     z_box = data["z_box"].squeeze()
     z_w = z_box[2] - z_box[0]
     z_h = z_box[3] - z_box[1]
     boxes.append([z_w, z_h])
 boxes = np.array(boxes)
-print(f"Number of boxes: {boxes.shape[0]}")
+boxes_num = boxes.shape[0]
+print(f"Number of boxes: {boxes_num}")
 
 
-####################################################################
-# Plot scatter of original boxes
-####################################################################
+##################################################
+# Count width & height values
+##################################################
+wh_below64 = boxes[(boxes[:, 0] < 64) & (boxes[:, 1] < 64)]
+wh_below64_num = wh_below64.shape[0]
+below_ratio = round(wh_below64_num / boxes_num, 2) * 100
+
+wh_above64 = boxes[(boxes[:, 0] > 64) & (boxes[:, 1] > 64)]
+wh_above64_num = wh_above64.shape[0]
+above_ratio = round(wh_above64_num / boxes_num, 2) * 100
+
+print(f"number: {boxes_num}")
+print(f"below 64 number: {wh_below64_num}")
+print(f"below 64 ratio: {below_ratio}%")
+print(f"above 64 number: {wh_above64_num}")
+print(f"above 64 ratio: {above_ratio}%")
+print("-" * 10)
+
+
+##################################################
+# Plot scatter graph of original boxes
+##################################################
 print("[INFO] Draw boxes")
-plt.figure()
-plt.xlabel("width")
-plt.ylabel("height")
-plt.scatter(boxes[:, 0], boxes[:, 1], c='orange')
-ax = plt.gca()
-ax.set_aspect(1)    # 讓 x, y 軸成正比
-save_path = "./kmeans/demo/boxes_scatter.jpg"
+# plt.figure()
+# plt.title(f"{args.dataset_name}_{args.crop_method}")
+# plt.xlabel("width")
+# plt.ylabel("height")
+# plt.scatter(boxes[:, 0], boxes[:, 1], c='orange')
+# # plt.text(1, 0, f"box num: {boxes_num}", fontsize=12)
+# # plt.text(1, 1, f"w & h below 64: {wh_below64_num}", fontsize=12)
+# ax = plt.gca()
+# ax.set_aspect(1)    # 讓 x, y 軸成正比
+# save_path = "./kmeans/demo/boxes_scatter.jpg"
+# plt.savefig(save_path)
+# print(f"Save boxes scatter plot to: {save_path}")
+
+fig, ax = plt.subplots()
+ax.scatter(x=boxes[:, 0], y=boxes[:, 1], c="orange")
+ax.set_xlim([0, cfg.TRAIN.SEARCH_SIZE])
+ax.set_ylim([0, cfg.TRAIN.SEARCH_SIZE])
+ax.set_xlabel("width")
+ax.set_ylabel("height")
+ax.set_aspect(1)
+ax.hlines(y=64, xmin=0, xmax=cfg.TRAIN.SEARCH_SIZE, linewidth=1, color='k')
+ax.vlines(x=64, ymin=0, ymax=cfg.TRAIN.SEARCH_SIZE, linewidth=1, color='k')
+ax.text(200, 255, f"Total: {boxes_num}", fontsize=12)
+ax.text(200, 235, f"below 64: {wh_below64_num}", fontsize=12)
+ax.text(200, 220, f"below ratio: {below_ratio}%", fontsize=12)
+ax.text(200, 200, f"above 64: {wh_above64_num}", fontsize=12)
+ax.text(200, 185, f"above ratio: {above_ratio}%", fontsize=12)
+save_path = f"./kmeans/demo/{args.dataset_name}_{args.criteria}_scatter.jpg"
 plt.savefig(save_path)
-print(f"save boxes scatter plot to: {save_path}")
+print(f"Save boxes scatter plot to: {save_path}")
 
 
-####################################################################
+##################################################
 # Plot average IoU curve
-####################################################################
-print('[INFO] Run anchor k-means with k = 2,3,...,k')
+##################################################
+print('[INFO] Run anchor k-means with k = 2, 3, ..., 21')
 results = {}
 for k in range(2, 21):
     model = AnchorKmeans(k, random_seed=333)
@@ -134,36 +181,65 @@ plt.xticks(range(2, 21, 1))
 
 save_path = "./kmeans/demo/k-iou_line.jpg"
 plt.savefig(save_path)
-print(f"save k-iou plot to {save_path}")
+print(f"Save k-iou plot to {save_path}")
 
+
+##################################################
+# Print anchors
+##################################################
 print('[INFO] The result anchors:')
-anchors = results[choose_k]['anchors']
-print(anchors)
+for k in range(2, 21):
+    print(f"Anchor: {k}")
+    anchors = results[k]['anchors']
+    anchors = np.around(anchors, decimals=3)
+    print(anchors)
+    print("-" * 20 + "\n")
 
 
-####################################################################
-# save defined anchors with the original boxes in scatter plot
-####################################################################
+##################################################
+# Save defined anchors with the original boxes in scatter graph
+##################################################
+choose_anchor = results[choose_k]['anchors']
+iou = results[choose_k]["avg_iou"]
+
 print("[INFO] Draw boxes")
-plt.figure()
-plt.xlabel("width")
-plt.ylabel("height")
-plt.scatter(boxes[:, 0], boxes[:, 1], c="orange")
-plt.scatter(anchors[:, 0], anchors[:, 1], c="blue")
-ax = plt.gca()
-ax.set_aspect(1)    # 讓 x, y 成正比
+fig, ax = plt.subplots()
+ax.scatter(x=boxes[:, 0], y=boxes[:, 1], c="orange")
+ax.scatter(x=choose_anchor[:, 0], y=choose_anchor[:, 1], c="blue")
+ax.set_xlim([0, cfg.TRAIN.SEARCH_SIZE])
+ax.set_ylim([0, cfg.TRAIN.SEARCH_SIZE])
+ax.set_xlabel("width")
+ax.set_ylabel("height")
+ax.set_aspect(1)
+ax.hlines(y=64, xmin=0, xmax=cfg.TRAIN.SEARCH_SIZE, linewidth=1, color='k')
+ax.vlines(x=64, ymin=0, ymax=cfg.TRAIN.SEARCH_SIZE, linewidth=1, color='k')
+ax.text(200, 255, f"Total: {boxes_num}", fontsize=12)
+ax.text(200, 235, f"below 64: {wh_below64_num}", fontsize=12)
+ax.text(200, 220, f"below ratio: {below_ratio}%", fontsize=12)
+ax.text(200, 200, f"above 64: {wh_above64_num}", fontsize=12)
+ax.text(200, 185, f"above ratio: {above_ratio}%", fontsize=12)
+ax.text(200, 165, f"Avg IOU: {round(iou, 3)}", fontsize=12)
 
-save_path = f"./kmeans/demo/boxes_kmeans{choose_k}_scatter.jpg"
+# plt.figure()
+# plt.xlabel("width")
+# plt.ylabel("height")
+# plt.scatter(boxes[:, 0], boxes[:, 1], c="orange")
+# plt.scatter(anchors[:, 0], anchors[:, 1], c="blue")
+# ax = plt.gca()
+# ax.set_aspect(1)    # 讓 x, y 成正比
+
+save_path = f"./kmeans/demo/{args.dataset_name}_{args.criteria}_{choose_k}_scatter.jpg"
 plt.savefig(save_path)
-print(f"save boxes-kmeans{choose_k} scatter plot to: {save_path}")
+print(f"Save boxes-kmeans{choose_k} scatter plot to: {save_path}")
 
-####################################################################
+
+##################################################
 # Visualize paper & kmeans anchors
-####################################################################
+##################################################
 print('[INFO] Visualizing paper anchors')
-visualize_anchors(anchor_paper, 255, "anchor_paper")
+visualize_anchors(anchor_official, 255, "anchor_official")
 
 print('[INFO] Visualizing kmeans anchors')
-visualize_anchors(anchors, cfg.TRAIN.SEARCH_SIZE, "anchor_kmeans")
+visualize_anchors(choose_anchor, cfg.TRAIN.SEARCH_SIZE, "anchor_kmeans")
 
 print("=" * 20 + " Done!! " + "=" * 20 + "\n")

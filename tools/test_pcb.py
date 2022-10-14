@@ -19,7 +19,8 @@ from pysot.datasets.pcbdataset_new import PCBDataset
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
 from pysot.utils.bbox import get_axis_aligned_bbox
-from pysot.utils.check_image import create_dir, draw_box, draw_preds, save_image
+from pysot.utils.check_image import (create_dir, draw_box, draw_preds,
+                                     save_image)
 from pysot.utils.model_load import load_pretrain
 from toolkit.datasets import DatasetFactory
 from toolkit.utils.region import vot_float2str, vot_overlap
@@ -30,142 +31,23 @@ parser = argparse.ArgumentParser(description='siamrpn tracking')
 parser.add_argument('--model', default='', type=str, help='model of models to eval')
 parser.add_argument('--crop_method', default='', type=str, help='teacher / amy')
 parser.add_argument('--bg', type=str, nargs='?', const='', help='background')
-parser.add_argument('--config', default='', type=str, help='config file')
-parser.add_argument('--dataset', type=str, help='datasets')
-parser.add_argument('--annotation', type=str, help='annotation for testing')
+parser.add_argument('--neg', type=float, help='negative sample ratio')
+parser.add_argument('--dataset_name', type=str, help='datasets name')
+parser.add_argument('--dataset_path', type=str, help='datasets path')
+parser.add_argument('--criteria', type=str, help='sample criteria for dataset')
 parser.add_argument('--save_dir', type=str, help='save to which directory')
+parser.add_argument('--config', default='', type=str, help='config file')
 args = parser.parse_args()
 
 torch.set_num_threads(1)
-
-
-    # for i in range (len(imgs)):
-    #     if not Image.open(imgs[i]):
-    #         continue
-    #     else:
-    #         transform = transforms.CenterCrop(255)
-    #         im = Image.open(imgs[i])
-    #         #im = transform(im)
-    #         #im.save("PIL_img.jpg")
-    #         # print("name:",imgs[i])
-    #         length = int(len(annotation[i])/4)
-    #         for j in range (length):
-    #             bbox = [annotation[i][0+j*4],annotation[i][1+j*4],annotation[i][2+j*4],annotation[i][3+j*4]]
-    #             print('bbox:',bbox)
-    #             # 2.获取边框坐标
-    #             # 边框格式　bbox = [xl, yl, xr, yr]
-    #             #bbox1 =[111,98,25,101]
-    #             #bbox1 = [72, 41, 208, 330]
-    #             #label1 = 'man'
-
-    #             #bbox2 = [100, 80, 248, 334]
-    #             #label2 = 'woman'
-
-    #             # 设置字体格式及大小
-    #             #font = ImageFont.truetype(font='./Gemelli.ttf', size=np.floor(1.5e-2 * np.shape(im)[1] + 15).astype('int32'))
-    #             #fnt = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf",  size=np.floor(1.5e-2 * np.shape(im)[1] + 15).astype('int32'))
-    #             draw = ImageDraw.Draw(im)
-    #             # 获取label长宽
-    #             #label_size1 = draw.textsize(label1)
-    #             #label_size2 = draw.textsize(label2)
-
-    #             # 设置label起点
-    #             #text_origin1 = np.array([bbox1[0], bbox1[1]])
-    #             #text_origin2 = np.array([bbox2[0], bbox2[1] - label_size2[1]])
-
-    #             # 绘制矩形框，加入label文本
-    #             draw.rectangle([bbox[0], bbox[1], bbox[2]+bbox[0], bbox[3]+bbox[1]],outline='red',width=4)
-    #             #draw.rectangle([tuple(text_origin1), tuple(text_origin1 + label_size1)], fill='red')
-    #             #draw.text(text_origin1, str(label1), fill=(255, 255, 255),font=fnt)
-
-
-    #             del draw
-
-    #             # save the result image
-    #             if not os.path.exists(save_dir):
-    #                 os.makedirs(save_dir)
-    #             im.save(save_dir + names[i])
-    
-
-# def main():
-#     # load config
-#     cfg.merge_from_file(args.config)
-
-#     dataset_root = os.path.join('./testing_dataset', args.dataset)
-
-#     # create model
-#     model = ModelBuilder()
-
-#     # load model
-#     model = load_pretrain(model, args.model).cuda().eval()
-
-#     # build tracker
-#     tracker = build_tracker(model)
-    
-#     model_name = args.model.split('/')[-1].split('.')[0]
-#     print(f"model_name: {model_name}")
-    
-#     gt_bbox_x1y1x2y2 = [45.09031666815281, 123.62768352031708, 123.27953104674816, 376.83301651477814]
-#     gt_bbox_xywh = [gt_bbox_x1y1x2y2[0],
-#                     gt_bbox_x1y1x2y2[1],
-#                     gt_bbox_x1y1x2y2[2] - gt_bbox_x1y1x2y2[0],
-#                     gt_bbox_x1y1x2y2[3] - gt_bbox_x1y1x2y2[1]]
-#     toc = 0
-#     pred_boxes = []
-#     scores = []
-#     track_times = []
-    
-#     ####################################################################
-#     # Step 1.
-#     # get the test data
-#     ####################################################################
-#     image_path = "./data/train/TemplateMatchingData/train/20200706 (114).bmp"
-#     image_name = "20200706 (114).bmp"
-#     image = cv2.imread(image_path)
-#     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-#     tic = cv2.getTickCount()
-#     cx, cy, w, h = get_axis_aligned_bbox(np.array(gt_bbox_xywh))
-#     gt_bbox_xywh = [cx-w/2, cy-h/2, w, h]
-#     print(f"gt_bbox: {gt_bbox_xywh}")
-
-#     tracker.init(image, gt_bbox_xywh)
-#     pred_box = gt_bbox_xywh
-#     pred_boxes.append(pred_box)
-
-#     outputs = tracker.track(image)
-#     scores.append(outputs['best_score'])
-#     pred_boxes.append(outputs['bbox'])
-#     print(f"pred_boxes: {pred_boxes}")
-
-#     toc += cv2.getTickCount() - tic
-#     track_times.append((cv2.getTickCount() - tic)/cv2.getTickFrequency())
-#     toc /= cv2.getTickFrequency()
-#     idx = 1
-#     print('Time: {:5.1f}s Speed: {:3.1f}fps'.format(toc, idx / toc))
-
-#     # save annotation result
-#     model_path = os.path.join('./results', args.dataset, model_name)
-#     if not os.path.isdir(model_path):
-#         os.makedirs(model_path)
-#     result_path = os.path.join(model_path, '{}.txt'.format(image_name))
-#     with open(result_path, 'w') as f:
-#         for x in pred_boxes:
-#             f.write(','.join([str(i) for i in x])+'\n')
-#     print(f"save annotation result to: {result_path}")
-    
-#     # draw result
-#     annotation_path = result_path
-#     save_dir = "./results/images/"
-#     image_dir = "./testing_dataset/2/"
-#     draw_preds(image_dir, annotation_path, save_dir)
 
 
 def test(test_loader, tracker, dir):
     clocks = 0
     for idx, data in enumerate(test_loader):
         # only one data in a batch (batch_size=1)
-        image_path = data['image_path'][0]
+        img_path = data['img_path'][0]
+        img_name = data['img_name'][0]
         z_box = data['z_box'][0]
         # origin_template_box = data['origin_template_box'][0]
         z_img = data['z_img'].cuda()
@@ -174,18 +56,18 @@ def test(test_loader, tracker, dir):
         scale = data['scale'][0].cpu().numpy()
         spatium = [x.cpu().item() for x in data['spatium']]
 
-        ####################################################################
-        # load image
-        ####################################################################
-        print(f"Load image from: {image_path}")
-        image = cv2.imread(image_path)
+        ##########################################
+        # Load image
+        ##########################################
+        print(f"Load image from: {img_path}")
+        image = cv2.imread(img_path)
 
-        ####################################################################
-        # creat directories
-        ####################################################################
+        ##########################################
+        # Creat directories
+        ##########################################
         # 用圖片檔名當作 sub_dir 的名稱
-        image_name = image_path.split('/')[-1].split('.')[0]
-        sub_dir = os.path.join(dir, image_name)
+        # img_name = img_path.split('/')[-1]
+        sub_dir = os.path.join(dir, img_name)
         create_dir(sub_dir)
 
         # --- 創 sub_dir/origin，裡面存 original image ---
@@ -214,24 +96,24 @@ def test(test_loader, tracker, dir):
         # create_dir(origin_pred_dir)
         # <<<<<<<<<<<<<<<<<<
 
-        ####################################################################
-        # save original image
-        ####################################################################
-        origin_path = os.path.join(origin_dir, f"{image_name}.jpg")
+        ##########################################
+        # Save original image
+        ##########################################
+        origin_path = os.path.join(origin_dir, f"{img_name}.jpg")
         save_image(image, origin_path)
 
-        ####################################################################
-        # save search image
+        ##########################################
+        # Save search image
         # 為什麼不要下面做完 track 在存就好了勒 ??
-        ####################################################################
+        ##########################################
         search_image_cpu = x_img[0].cpu().numpy().copy()
         search_image_cpu = search_image_cpu.transpose(1, 2, 0)      # (3, 255, 255) -> (255, 255, 3)
         search_path = os.path.join(search_dir, f"{idx}.jpg")
         save_image(search_image_cpu, search_path)
 
-        ####################################################################
+        ##########################################
         # pred_boxes, scores
-        ####################################################################
+        ##########################################
         pred_boxes = []
         origin_pred_boxes = []
         scores = None
@@ -260,8 +142,8 @@ def test(test_loader, tracker, dir):
         # origin_pred_boxes.append(origin_template_box)
 
         ##########################################
-        # init tracker
-        # save template image to ./results/images/{image_name}/template/{idx}.jpg
+        # Init tracker
+        # Save template image to ./results/{dataset_name}/{img_name}/template/{idx}.jpg
         ##########################################
         tic = cv2.getTickCount()
 
@@ -280,7 +162,7 @@ def test(test_loader, tracker, dir):
         toc = cv2.getTickCount()
         clocks += toc - tic    # 總共有多少個 clocks (clock cycles)
 
-        z_img = np.transpose(z_img, (1, 2, 0))        # (3, 127, 127) -> (127, 127, 3)
+        z_img = np.transpose(z_img, (1, 2, 0))    # (3, 127, 127) -> (127, 127, 3)
         z_path = os.path.join(z_dir, f"{idx}.jpg")
         save_image(z_img, z_path)
 
@@ -294,16 +176,16 @@ def test(test_loader, tracker, dir):
             origin_box = np.around(origin_box, decimals=2)
             origin_pred_boxes.append(origin_box)
 
-        # save search image
+        # Save search image
         x_img = outputs['x_img']
         x_img = np.transpose(x_img, (1, 2, 0))
         # x_path = os.path.join(x_dir, f"{idx}.jpg")
         # save_image(x_img, x_path)
         # print(f"save x_img image to: {x_path}")
 
-        ####################################################################
-        # save annotation file
-        ####################################################################
+        ##########################################
+        # Save annotation file
+        ##########################################
         # === pred_boxes on "search" image ===
         anno_path = os.path.join(anno_dir, f"{idx}.txt")
         with open(anno_path, 'w') as f:
@@ -321,20 +203,20 @@ def test(test_loader, tracker, dir):
         #         f.write(', '.join(map(str, x)) + ', ' + str(scores[i]) + '\n')
         # print(f"save origin annotation result to: {origin_anno_path}")
 
-        ####################################################################
+        ##########################################
         # draw the gt boxes
-        ####################################################################
+        ##########################################
         # === gt_boxes on "search" image ===
-        gt_image = draw_box(search_image_cpu, gt_boxes, type="gt")
+        x_img = draw_box(x_img, gt_boxes, type="gt")
 
-        ####################################################################
+        ##########################################
         # draw the pred boxes
-        ####################################################################
+        ##########################################
         # === pred_boxes on "search" image ===
         pred_path = os.path.join(pred_dir, f"{idx}.jpg")
-        pred_image = draw_preds(sub_dir, gt_image, scores, anno_path, idx)
-        if pred_image is None:      # 如果沒偵測到物件，存 search image
-            save_image(search_image_cpu, pred_path)
+        pred_image = draw_preds(sub_dir, x_img, scores, anno_path, idx)
+        if pred_image is None:    # 如果沒偵測到物件，存 search image
+            save_image(x_img, pred_path)
         else:
             save_image(pred_image, pred_path)
         # === pred_boxes on "original" image ===
@@ -347,22 +229,25 @@ def test(test_loader, tracker, dir):
 
         print("=" * 20)
 
+        # ipdb.set_trace()
+
     period = clocks / cv2.getTickFrequency()
     fps = idx / period
     print(f"Speed: {fps} fps")
 
 
 if __name__ == "__main__":
-    test_dataset = PCBDataset(args)
+    test_dataset = PCBDataset(args, "eval")
+    print(f"Test dataset number: {len(test_dataset)}")
     test_loader = DataLoader(test_dataset,
                              batch_size=1,    # 只能設 1
                              num_workers=0)
 
-    cfg.merge_from_file(args.config)        # 不加 ModelBuilder() 會出問題ㄟ??
+    cfg.merge_from_file(args.config)    # 不加 ModelBuilder() 會出問題ㄟ??
 
-    # create model
+    # Create model
     model = ModelBuilder()
-    # load model
+    # Load model
     model = load_pretrain(model, args.model).cuda().eval()
     print(f"Load model from: {args.model}")
 
@@ -370,13 +255,12 @@ if __name__ == "__main__":
     model_name = args.model.split('/')[-2]
     print(f"model_name: {model_name}")
 
-    # build tracker
-    tracker = build_tracker(model)
-
     dir = os.path.join(args.save_dir, model_name)
-    if not os.path.isdir(dir):
-        os.makedirs(dir)
+    create_dir(dir)
     print(f"Test results saved in: {dir}")
+
+    # Build tracker
+    tracker = build_tracker(model)
 
     test(test_loader, tracker, dir)
 

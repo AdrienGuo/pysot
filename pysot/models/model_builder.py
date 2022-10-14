@@ -97,7 +97,9 @@ class ModelBuilder(nn.Module):
         z_img = data['z_img'].cuda()
         x_img = data['x_img'].cuda()
         gt_boxes_padding = data['gt_boxes_padding'].cuda()
-        image_name = data['image_name'][0]
+        neg = data['neg']
+        # --- anchor_target 裡面要存檔用的 ---
+        img_name = data['img_name'][0]
         idx = data['idx'][0]
 
         ####################################################################
@@ -106,7 +108,8 @@ class ModelBuilder(nn.Module):
         label_cls, label_loc, label_loc_weight, _ = self.anchor_target(
             gt_boxes_padding,
             self.output_size,
-            image_name=image_name,
+            neg=neg,
+            img_name=img_name,
             idx=idx
         )
 

@@ -61,10 +61,11 @@ def crop_like_teacher(img, box, bg, exemplar_size=127, padding=(0, 0, 0)):
         x = (exemplar_size / 2) - (cx)
         y = (exemplar_size / 2) - (cy)
         crop_img = img    # 要裁切的對象是整張圖
-    # --- n倍的背景 ---
+    # --- n 倍的背景 ---
     else:
         # 決定裁切的寬高
-        bg = int(bg)
+        bg = float(bg)
+        assert bg >= 1, f"Error, (bg: {bg}) should not smaller than 1"
         crop_w = box_size[0] * bg
         crop_h = box_size[1] * bg
         box = [box_pos[0] - crop_w * 0.5,
@@ -94,3 +95,25 @@ def crop_like_teacher(img, box, bg, exemplar_size=127, padding=(0, 0, 0)):
     )
 
     return crop_img
+
+
+def crop_tri(img, r, exemplar_size, padding=(0, 0, 0)):
+    img_h, img_w = img.shape[:2]
+
+    x = (exemplar_size // 2) - (img_w // 2)
+    y = (exemplar_size // 2) - (img_h // 2)
+    mapping = np.array([[1, 0, x],
+                        [0, 1, y]]).astype(np.float)
+
+    crop_img = cv2.warpAffine(
+        img,
+        mapping,
+        (exemplar_size, exemplar_size),
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=padding
+    )
+
+    # virtual box for ratio_penalty
+    box = np.array([[0, 0, img_w, img_h]])
+
+    return crop_img, box

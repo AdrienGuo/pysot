@@ -41,10 +41,10 @@ def draw_box(image, boxes, type=None, scores=None):
         thickness = 1
     elif type == "gt":
         color = (255, 0, 0)    # blue
-        thickness = 5
+        thickness = 3
     else:
-        color = (0, 0, 0)    # white?
-        thickness = 2
+        color = (255, 255, 255)    # white?
+        thickness = 1
 
     # draw targets
     for idx, box in enumerate(boxes):
@@ -89,7 +89,9 @@ def draw_preds(sub_dir, search_image, scores, annotation_path, idx):
                 anno = list(map(float, anno))
                 preds.append(anno[:-1])
 
-    pred_image = draw_box(search_image, [template], type="template")
-    pred_image = draw_box(pred_image, preds, type="pred", scores=scores)
+    # Draw template
+    search_image = draw_box(search_image, [template], type="template")
+    # Draw preds
+    pred_image = draw_box(search_image, preds, type="pred", scores=scores)
 
     return pred_image

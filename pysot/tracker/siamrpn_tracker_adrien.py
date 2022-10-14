@@ -211,8 +211,8 @@ class SiamRPNTracker(SiameseTracker):
             z_box: (x1, y1, w, h) z_box
             template_image (batch, w, h, channel), dtype=tensor: template image that had been preprocessed
         """
-        self.center_pos = np.array([z_box[0] + (z_box[2] - 1) / 2,
-                                    z_box[1] + (z_box[3] - 1) / 2])
+        # self.center_pos = np.array([z_box[0] + (z_box[2] - 1) / 2,
+        #                             z_box[1] + (z_box[3] - 1) / 2])
         self.size = np.array([z_box[2], z_box[3]])    # 在做 window penalty 的時候會用到
 
         # calculate z crop size
@@ -232,20 +232,6 @@ class SiamRPNTracker(SiameseTracker):
         #                             cfg.TRACK.EXEMPLAR_SIZE,
         #                             s_z,
         #                             self.channel_average)
-
-        '''
-        z_crop = img[int(self.center_pos[1])-int(cfg.TRACK.EXEMPLAR_SIZE/2):int(self.center_pos[1])+int(cfg.TRACK.EXEMPLAR_SIZE/2),int(self.center_pos[0])-int(cfg.TRACK.EXEMPLAR_SIZE/2):int(self.center_pos[0])+int(cfg.TRACK.EXEMPLAR_SIZE/2)]
-        z_crop = z_crop.transpose(2, 0, 1)
-        z_crop = z_crop[np.newaxis, :, :, :]
-        z_crop = z_crop.astype(np.float32)
-        z_crop = torch.from_numpy(z_crop)
-        z_crop = z_crop.cuda()
-        to_pil_image = transforms.ToPILImage()
-        imgs = to_pil_image(z_crop[0])
-        imgs.show()
-        #plt.imshow(imgs)
-        #plt.show()
-        '''
 
         self.model.template(z_img)
 
@@ -281,19 +267,6 @@ class SiamRPNTracker(SiameseTracker):
         #                             cfg.TRACK.INSTANCE_SIZE,
         #                             round(s_x),
         #                             self.channel_average)
-
-        ''' 
-        _,transform_val=get_transforms(600)
-        x_img = transform_val(Image.fromarray(x_img))
-        x_img = x_img.unsqueeze(0)
-        x_img = x_img.cuda()
-        
-        to_pil_image = transforms.ToPILImage()
-        x_imgs = to_pil_image(x_img[0])
-        #x_imgs.show()
-        plt.imshow(x_imgs)
-        plt.show()
-        '''
 
         outputs = self.model.track(x_img)                         # (1, 2*anchor_num, 25, 25)
 
@@ -351,9 +324,9 @@ class SiamRPNTracker(SiameseTracker):
                 y1 = pred_box[1] - h / 2
                 x2 = pred_box[0] + w / 2
                 y2 = pred_box[1] + h / 2
-                # 超出圖片的 pred_box 捨棄
                 if ((x1 < 0) or (y1 < 0)
                     or (x2 > cfg.TRACK.INSTANCE_SIZE) or (y2 > cfg.TRACK.INSTANCE_SIZE)):
+                    # 捨棄超出圖片的 pred_box
                     continue
                 top_scores.append(score)
 

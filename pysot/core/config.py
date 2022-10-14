@@ -31,6 +31,7 @@ __C.TRAIN.THR_LOW = 0.3
 
 # Number of negative
 __C.TRAIN.NEG_NUM = 16
+# __C.TRAIN.NEG_NUM = 35
 # Number of positive
 __C.TRAIN.POS_NUM = 16
 # Number of anchors per images
@@ -65,6 +66,7 @@ __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.WEIGHT_DECAY = 0.0001
 
 __C.TRAIN.CLS_WEIGHT = 1.0
+# __C.TRAIN.CLS_WEIGHT = 2.0
 __C.TRAIN.LOC_WEIGHT = 1.2
 __C.TRAIN.MASK_WEIGHT = 1
 
@@ -123,7 +125,7 @@ __C.DATASET.SEARCH.FLIP = 0.0
 __C.DATASET.SEARCH.COLOR = 1.0
 
 # Sample Negative pair see [DaSiamRPN](https://arxiv.org/pdf/1808.06048) for detail discussion
-__C.DATASET.NEG = 0.2
+# __C.DATASET.NEG = True
 
 # improve tracking performance for otb100
 __C.DATASET.GRAY = 0.0
@@ -241,7 +243,6 @@ __C.ANCHOR.RATIOS = [0.33, 0.5, 1, 2, 3]
 __C.ANCHOR.SCALES = [8]
 # Anchor number
 # __C.ANCHOR.ANCHOR_NUM = len(__C.ANCHOR.RATIOS) * len(__C.ANCHOR.SCALES)
-# __C.ANCHOR.ANCHOR_NUM = 5
 __C.ANCHOR.ANCHOR_NUM = 11
 
 

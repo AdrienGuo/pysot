@@ -15,7 +15,6 @@ ADJUST:
 RPN:
     TYPE: 'MultiRPN'
     KWARGS:
-        # anchor_num: 5
         anchor_num: 11
         in_channels: [256, 256, 256]
         weighted: true
@@ -29,7 +28,6 @@ ANCHOR:
     RATIOS: [0.33, 0.5, 1, 2, 3]
     SCALES: [8]
     # ANCHOR_NUM: 5
-    ANCHOR_NUM: 11
 
 TRACK:
     TYPE: 'SiamRPNTracker'

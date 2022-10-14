@@ -14,15 +14,15 @@ def bbox_overlaps_batch(anchors, gt_boxes):
         參考 Faster R-CNN: https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/utils/bbox.pyx
     Args:
         anchors: (N, 4) #corner #tensor
-        gt_boxes: (b, K, 4) #corner #tensor
+        gt_boxes: (b, G, 4) #corner #tensor
     Returns:
-        overlaps: (b, N, K) ndarray of overlap between anchors(N) and targets(K)
+        overlaps: (b, N, G) ndarray of overlap between anchors(N) and targets(G)
     """
     # batch > 1 的 overlaps 算法
     # Reference: https://github.com/jwyang/faster-rcnn.pytorch/blob/master/lib/model/rpn/bbox_transform.py
     batch_size = gt_boxes.size(0)
     N = anchors.size(0)     # all_anchor_num
-    K = gt_boxes.size(1)    # max_num_box
+    G = gt_boxes.size(1)    # max_num_box
     anchors = anchors.view(1, N, 4).expand(batch_size, N, 4).contiguous()
     gt_boxes = gt_boxes.contiguous()
 
@@ -33,14 +33,14 @@ def bbox_overlaps_batch(anchors, gt_boxes):
 
     gt_boxes_w = gt_boxes[:, :, 2] - gt_boxes[:, :, 0] + 1
     gt_boxes_h = gt_boxes[:, :, 3] - gt_boxes[:, :, 1] + 1
-    gt_boxes_area = (gt_boxes_w * gt_boxes_h).view(batch_size, 1, K)
+    gt_boxes_area = (gt_boxes_w * gt_boxes_h).view(batch_size, 1, G)
 
     gt_area_zero = (gt_boxes_w == 1) & (gt_boxes_h == 1)
     anchors_area_zero = (anchors_w == 1) & (anchors_h == 1)
 
     # 這個做法超強!! 完全不用 for loop，也太聰明
-    boxes = anchors.view(batch_size, N, 1, 4).expand(batch_size, N, K, 4)
-    query_boxes = gt_boxes.view(batch_size, 1, K, 4).expand(batch_size, N, K, 4)
+    boxes = anchors.view(batch_size, N, 1, 4).expand(batch_size, N, G, 4)
+    query_boxes = gt_boxes.view(batch_size, 1, G, 4).expand(batch_size, N, G, 4)
 
     iw = torch.min(boxes[:, :, :, 2], query_boxes[:, :, :, 2]) \
         - torch.max(boxes[:, :, :, 0], query_boxes[:, :, :, 0]) + 1
@@ -54,13 +54,18 @@ def bbox_overlaps_batch(anchors, gt_boxes):
 
     # 這步應該根本不用做吧? 因為不可能發生阿?
     # mask the overlap here.
-    overlaps.masked_fill_(gt_area_zero.view(batch_size, 1, K).expand(batch_size, N, K), 0)
-    overlaps.masked_fill_(anchors_area_zero.view(batch_size, N, 1).expand(batch_size, N, K), -1)
+    overlaps.masked_fill_(gt_area_zero.view(batch_size, 1, G).expand(batch_size, N, G), 0)
+    overlaps.masked_fill_(anchors_area_zero.view(batch_size, N, 1).expand(batch_size, N, G), -1)
 
     return overlaps
 
 
 def bbox_transform_batch(ex_rois, gt_rois):
+    """
+    Args:
+        ex_rois: (N, 4)
+        gt_rois: (b, N, 4)
+    """
     if ex_rois.dim() == 2:
         ex_widths = ex_rois[:, 2] - ex_rois[:, 0] + 1.0
         ex_heights = ex_rois[:, 3] - ex_rois[:, 1] + 1.0

@@ -17,7 +17,7 @@ import torch.nn as nn
 from pysot.core.config import cfg
 from pysot.rpn.anchor import Anchors
 from pysot.rpn.bbox_transform import bbox_overlaps_batch, bbox_transform_batch
-from pysot.utils.check_image import draw_box, save_image
+from pysot.utils.check_image import create_dir, draw_box, save_image
 
 DEBUG = cfg.DEBUG
 
@@ -39,10 +39,14 @@ class AnchorTarget(nn.Module):
 
         self._allowed_border = cfg.TRAIN.ALLOWED_BORDER
 
-    def forward(self, gt_boxes, size, neg=False, image_name=None, idx=None):
-        """
+    def forward(self, gt_boxes, size, neg, img_name=None, idx=None):
+        """ 定義代號:
+        N: anchor 的總數量
+        G: gt_boxes 的總數量
+        A: 一個 grid 的 anchor 數量
+
         Args:
-            gt_boxes: (b, K, 4) #corner
+            gt_boxes: (b, G, 4) #corner
             size: cfg.TRAIN.OUTPUT_SIZE
             idx: 存 anchor 在 search image 上的位置的檔名 (會跟 template, search 對應)
                  要用的話 batch size 要等於 1
@@ -52,16 +56,16 @@ class AnchorTarget(nn.Module):
             delta_weight: 
             overlap: 
         """
-        # anchor_num = len(cfg.ANCHOR.RATIOS) * len(cfg.ANCHOR.SCALES)
-        # anchor_num = cfg.ANCHOR.ANCHOR_NUM
         batch_size = gt_boxes.size(0)
+        gt_num = gt_boxes.size(1)
+        A = cfg.ANCHOR.ANCHOR_NUM
 
         # -1 ignore, 0 negative, 1 positive
         # cls = -1 * np.ones((anchor_num, size, size), dtype=np.int64)
         # delta = np.zeros((4, anchor_num, size, size), dtype=np.float32)
         # delta_weight = np.zeros((anchor_num, size, size), dtype=np.float32)
 
-        def select(position, keep_num=16):
+        def select(position, keep_num):
             num = position[0].shape[0]
             if num <= keep_num:
                 return position, num
@@ -70,36 +74,47 @@ class AnchorTarget(nn.Module):
             slt = slt[:keep_num]
             return tuple(p[slt] for p in position), keep_num
 
-        # tcx, tcy, tw, th = corner2center(gt_boxes)
+        # TODO: neg sample
+        # batch_neg = (neg == True).nonzero(as_tuple=True)[0].detach().cpu().numpy()
+        # # cls_neg: (B_neg, A, size, size)
+        # cls_neg = -1 * gt_boxes.new_ones(
+        #     (batch_neg.shape[0], A, size, size),
+        #     dtype=torch.int64
+        # )
 
-        # if neg:
-        #     # l = size // 2 - 3
-        #     # r = size // 2 + 3 + 1
-        #     # cls[:, l:r, l:r] = 0
-            
-        #     # randomly get only "one" gt_boxes from all gt_boxess
-        #     random_pick = np.random.randint(low=len(tcx), size=1)
-        #     tcx = tcx[random_pick]
-        #     tcy = tcy[random_pick]
+        # cx = size // 2
+        # cy = size // 2
+        # for b in range(batch_neg.shape[0]):
+        #     assert False, "You should not come in"
+        #     for g in range(gt_num):
+        #         if gt_boxes[b, g, 0] == 0:
+        #             # the padding gt_box
+        #             break
+        #         gt_w = (gt_boxes[b, g, 2] - gt_boxes[b, g, 0] + 1.0).item()
+        #         gt_h = (gt_boxes[b, g, 3] - gt_boxes[b, g, 1] + 1.0).item()
+        #         gt_cx = (gt_boxes[b, g, 0] + 0.5 * gt_w).item()
+        #         gt_cy = (gt_boxes[b, g, 1] + 0.5 * gt_h).item()
 
-        #     cx = size // 2
-        #     cy = size // 2
-        #     cx += int(np.ceil((tcx - cfg.TRAIN.SEARCH_SIZE // 2) /
-        #               cfg.ANCHOR.STRIDE + 0.5))
-        #     cy += int(np.ceil((tcy - cfg.TRAIN.SEARCH_SIZE // 2) /
-        #               cfg.ANCHOR.STRIDE + 0.5))
-        #     l = max(0, cx - 3)
-        #     r = min(size, cx + 4)
-        #     u = max(0, cy - 3)
-        #     d = min(size, cy + 4)
-        #     cls[:, u:d, l:r] = 0
+        #         cx += int(np.ceil((gt_cx - cfg.TRAIN.SEARCH_SIZE // 2)
+        #             / cfg.ANCHOR.STRIDE + 0.5))
+        #         cy += int(np.ceil((gt_cy - cfg.TRAIN.SEARCH_SIZE // 2)
+        #             / cfg.ANCHOR.STRIDE + 0.5))
+        #         w = int(gt_w // cfg.ANCHOR.STRIDE)
+        #         h = int(gt_h // cfg.ANCHOR.STRIDE)
 
-        #     neg, neg_num = select(np.where(cls == 0), cfg.TRAIN.NEG_NUM)
-        #     cls[:] = -1
-        #     cls[neg] = 0
+        #         # 讓 cx, cy 介在 0 ~ size
+        #         cx = min(size, max(0, cx))
+        #         cy = min(size, max(0, cy))
 
-        #     overlap = np.zeros((anchor_num, size, size), dtype=np.float32)
-        #     return cls, delta, delta_weight, overlap
+        #         l = max(0, cx - w // 2 - 1)
+        #         r = min(size, cx + w // 2 + 1)
+        #         u = max(0, cy - h // 2 - 1)
+        #         d = min(size, cy + h // 2 + 1)
+        #         cls_neg[b, :, u:d, l:r] = 0
+
+        #         neg, _ = select((cls_neg[b] == 0).nonzero(as_tuple=True), cfg.TRAIN.NEG_NUM)
+        #         cls_neg[b, :, :, :] = -1
+        #         cls_neg[b, neg[0], neg[1], neg[2]] = 0
 
         self.all_anchors = self.all_anchors.type_as(gt_boxes)   # move to the same gpu
 
@@ -118,37 +133,39 @@ class AnchorTarget(nn.Module):
         bbox_inside_weights = gt_boxes.new_zeros((batch_size, inds_inside.size(0)))
         bbox_outside_weights = gt_boxes.new_zeros((batch_size, inds_inside.size(0)))
 
-        ####################################################################
+        ##########################################
         # 找 anchor 與 target 之間的對應關係
-        ####################################################################
+        ##########################################
         # 參考 https://github.com/jwyang/faster-rcnn.pytorch/blob/f9d984d27b48a067b29792932bcb5321a39c1f09/lib/model/rpn/anchor_target_layer.py#L98
-        overlaps = bbox_overlaps_batch(anchors, gt_boxes)      # overlaps: (b, K, N=100)
+        overlaps = bbox_overlaps_batch(anchors, gt_boxes)      # overlaps: (b, N, G=100)
 
-        max_overlaps, argmax_overlaps = torch.max(overlaps, dim=2)      # max_overlaps, argmax_overlaps: (b, K)
-        gt_max_overlaps, _ = torch.max(overlaps, dim=1)                 # gt_max_overlaps: (b, N)
+        # max_overlaps, argmax_overlaps: (b, N)
+        max_overlaps, argmax_overlaps = torch.max(overlaps, dim=2)
+        # gt_max_overlaps: (b, G)
+        gt_max_overlaps, _ = torch.max(overlaps, dim=1)
 
-        ####################################################################
+        ##########################################
         # 在 faster-rcnn 原本的程式碼裡面，
         # <= THR_LOW 是放在後面，要去 clobber positives，
         # 但是我怕我連最高 IOU 的都沒有超過 THR_LOW，
         # 會變成完全沒有 positives 的情況，所以把這個往前放
-        ####################################################################
-        # fg label: above threshold IOU
+        ##########################################
+        # fg label & bg label
         cls[max_overlaps >= cfg.TRAIN.THR_HIGH] = 1
         cls[max_overlaps <= cfg.TRAIN.THR_LOW] = 0
 
-        ####################################################################
+        ##########################################
         # 計算 cls
-        ####################################################################
+        ##########################################
         # 看不懂這步在幹嘛，我猜是將與 gt 有最大 IoU 的 anchor 直接判為 fg (對 就是 我直覺頗準呢)
         gt_max_overlaps[gt_max_overlaps == 0] = 1e-5
-        keep = torch.sum(overlaps.eq(gt_max_overlaps.view(batch_size, 1, -1).expand_as(overlaps)), dim=2)   # keep (b, K)
+        keep = torch.sum(overlaps.eq(gt_max_overlaps.view(batch_size, 1, -1).expand_as(overlaps)), dim=2)   # keep (b, N)
         if torch.sum(keep) > 0:
             cls[keep > 0] = 1
 
-        ####################################################################
+        ##########################################
         # 將過多的 pos, neg 刪除
-        ####################################################################
+        ##########################################
         sum_fg = torch.sum((cls == 1).int(), 1)
         sum_bg = torch.sum((cls == 0).int(), 1)
         # 將過多的 pos, neg 刪除
@@ -176,53 +193,57 @@ class AnchorTarget(nn.Module):
                 disable_inds = bg_inds[rand_num[:bg_inds.size(0) - cfg.TRAIN.TOTAL_NUM]]
                 cls[i][disable_inds] = -1
 
-        ####################################################################
-        # 計算 delta
-        ####################################################################
+        ##########################################
+        # 計算 anchor 和 target 的 delta (也就是 label)
+        ##########################################
         # 不懂這個 offset 要幹嘛
         offset = torch.arange(0, batch_size) * gt_boxes.size(1)
         argmax_overlaps = argmax_overlaps + offset.view(batch_size, 1).type_as(argmax_overlaps)
-        # bbox_targets (b, K, 4)
+        # bbox_targets (b, N, 4)
+        # 這個操作真的好難
+        # gt_boxes: (b, G, 4) -> (b*G, 4) -> 
         bbox_targets = bbox_transform_batch(anchors, gt_boxes.view(-1, 4)[argmax_overlaps.view(-1), :].view(batch_size, -1, 4))
 
         pos_num = torch.sum(cls[i] == 1)
         # if pos_num == 0:
         #     pos_num = torch.tensor(1, dtype=torch.int64)
-        bbox_weights[cls == 1] = 1.0 / pos_num.item()       # 正樣本的 anchor 數量越少, weight 越高 (why)
+        bbox_weights[cls == 1] = 1.0 / pos_num.item()       # 正樣本的 anchor 數量越少, weight 越高
 
         cls = _unmap(cls, self.all_anchors.size(0), inds_inside, batch_size, fill=-1)
         bbox_targets = _unmap(bbox_targets, self.all_anchors.size(0), inds_inside, batch_size, fill=0)
         bbox_weights = _unmap(bbox_weights, self.all_anchors.size(0), inds_inside, batch_size, fill=0)
 
-        ####################################################################
+        ##########################################
         # 換成之後要處理的格式
-        ####################################################################
-        # label_cls: torch.Size([32, 11, 17, 17])
-        # cls (b, anchor_num, size, size)
+        ##########################################
+        # cls: (b, anchor_num, size, size)
         cls = cls.view(batch_size, size, size, cfg.ANCHOR.ANCHOR_NUM).permute(0, 3, 1, 2).contiguous()
 
-        # bbox_targets = bbox_targets.view(batch_size, size, size, cfg.ANCHOR.ANCHOR_NUM * 4).permute(0, 3, 1, 2).contiguous()
-        # label_loc: torch.Size([32, 4, 11, 17, 17])
-        # bbox_targets (b, 4, anchor_num, size, size)
+        # bbox_targets: (B, 4, A, size, size)
+        # bbox_weights: (B, A, size, size)
         bbox_targets = bbox_targets.view(batch_size, size, size, cfg.ANCHOR.ANCHOR_NUM, 4).permute(0, 4, 3, 1, 2).contiguous()
         bbox_weights = bbox_weights.view(batch_size, size, size, cfg.ANCHOR.ANCHOR_NUM).permute(0, 3, 1, 2).contiguous()
 
-        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        # all_anchors = self.all_anchors.view(size, size, cfg.ANCHOR.ANCHOR_NUM, 4).permute(3, 2, 0, 1).cpu().numpy().copy()
-        # all_anchors[2] = all_anchors[2] - all_anchors[0]    # x2 -> w
-        # all_anchors[3] = all_anchors[3] - all_anchors[1]    # y2 -> h
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        all_anchors = self.all_anchors.view(size, size, cfg.ANCHOR.ANCHOR_NUM, 4).permute(3, 2, 0, 1).cpu().numpy().copy()
+        all_anchors[2] = all_anchors[2] - all_anchors[0]    # x2 -> w
+        all_anchors[3] = all_anchors[3] - all_anchors[1]    # y2 -> h
 
-        # # === 畫出在 black bg 的 anchor ===
-        # # anchor = all_anchors[:, :, size//2, size//2]      # 選要哪一個 anchor
-        # # anchor = np.transpose(anchor, (1, 0))
-        # # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))   # 製作黑色底圖
-        # # anchor_image = draw_box(img, anchor)
-        # # anchor_dir = "./image_check/train/anchor/"
-        # # anchor_path = os.path.join(anchor_dir, "anchor.jpg")
-        # # save_image(anchor_image, anchor_path)
-        # # print(f"save anchor image to: {anchor_path}")
+        # === 畫出在 black bg 的 anchor ===
+        # anchor = all_anchors[:, :, size // 2, size // 2]    # 選要哪一個 anchor
+        # anchor = np.transpose(anchor, (1, 0))
+        # img = np.zeros((cfg.TRACK.INSTANCE_SIZE, cfg.TRACK.INSTANCE_SIZE, 3))    # 製作黑色底圖
+        # anchor_image = draw_box(img, anchor)
+        # anchor_dir = os.path.join(
+        #     "./image_check/train/",
+        #     img_name,
+        #     "anchor"
+        # )
+        # create_dir(anchor_dir)
+        # anchor_path = os.path.join(anchor_dir, "anchor.jpg")
+        # save_image(anchor_image, anchor_path)
 
-        # # === 把 pos anchor 印出來 ===
+        # === 把 pos anchor 印出來 ===
         # cls_check = cls[0].cpu().numpy().copy()
         # pos = np.where(cls_check == 1)
         # pos_anchors = all_anchors[:, pos[0], pos[1], pos[2]]    # (4, n)
@@ -232,17 +253,28 @@ class AnchorTarget(nn.Module):
         # pos_image = draw_box(black_image, pos_anchors)
 
         # # sub_dir 是以 "圖片名稱" 命名
-        # sub_dir = os.path.join("./image_check/train/", image_name)
+        # sub_dir = os.path.join('./image_check/train/', img_name)
         # # 創 sub_dir/pos，裡面存 pos image
         # pos_dir = os.path.join(sub_dir, "pos")
-        # if not os.path.isdir(pos_dir):
-        #     os.makedirs(pos_dir)
-        #     print(f"create dir: {pos_dir}")
+        # create_dir(pos_dir)
 
         # pos_path = os.path.join(pos_dir, f"{idx}.jpg")
         # save_image(pos_image, pos_path)
-        # print(f"save pos image to: {pos_path}")
-        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # ipdb.set_trace()
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+        # for idx, batch in enumerate(batch_neg):
+        #     assert False, "You should not come in"
+        #     cls[batch] = cls_neg[idx]
+        #     bbox_targets[batch] = 0
+        #     bbox_weights[batch] = 0
+        #     max_overlaps[batch] = 0
+
+        for i in range(batch_size):
+            pos_num = (cls[i] == 1).nonzero(as_tuple=False).size()[0]
+            assert pos_num, \
+                f"No positive anchor in cls number: {i}"
 
         return cls, bbox_targets, bbox_weights, max_overlaps
 
