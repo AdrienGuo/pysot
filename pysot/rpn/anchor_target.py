@@ -75,16 +75,16 @@ class AnchorTarget(nn.Module):
             return tuple(p[slt] for p in position), keep_num
 
         # TODO: neg sample
-        # batch_neg = (neg == True).nonzero(as_tuple=True)[0].detach().cpu().numpy()
+        # neg_batch = (neg == True).nonzero(as_tuple=True)[0].detach().cpu().numpy()
         # # cls_neg: (B_neg, A, size, size)
         # cls_neg = -1 * gt_boxes.new_ones(
-        #     (batch_neg.shape[0], A, size, size),
+        #     (neg_batch.shape[0], A, size, size),
         #     dtype=torch.int64
         # )
 
         # cx = size // 2
         # cy = size // 2
-        # for b in range(batch_neg.shape[0]):
+        # for b in range(neg_batch.shape[0]):
         #     assert False, "You should not come in"
         #     for g in range(gt_num):
         #         if gt_boxes[b, g, 0] == 0:
@@ -131,6 +131,7 @@ class AnchorTarget(nn.Module):
         cls = -1 * gt_boxes.new_ones((batch_size, inds_inside.size(0)), dtype=torch.int64)    # cls default is -1
         bbox_weights = gt_boxes.new_zeros((batch_size, inds_inside.size(0)))
         bbox_inside_weights = gt_boxes.new_zeros((batch_size, inds_inside.size(0)))
+        # TODO: 我真滴不懂 bbox_outside_weights 在 faster-rcnn 裡面的作用
         bbox_outside_weights = gt_boxes.new_zeros((batch_size, inds_inside.size(0)))
 
         ##########################################
@@ -185,12 +186,12 @@ class AnchorTarget(nn.Module):
             # num_bg = cfg.TRAIN.BATCH_SIZE - torch.sum((cls == 1).int(), 1)[i]
 
             # subsample negative cls if we have too many
-            if sum_bg[i] > cfg.TRAIN.TOTAL_NUM:
+            if sum_bg[i] > cfg.TRAIN.TOTAL_NUM - cfg.TRAIN.POS_NUM:
                 bg_inds = torch.nonzero(cls[i] == 0).view(-1)
                 # rand_num = torch.randperm(bg_inds.size(0)).type_as(gt_boxes).long()
 
                 rand_num = torch.from_numpy(np.random.permutation(bg_inds.size(0))).type_as(gt_boxes).long()
-                disable_inds = bg_inds[rand_num[:bg_inds.size(0) - cfg.TRAIN.TOTAL_NUM]]
+                disable_inds = bg_inds[rand_num[:bg_inds.size(0) - (cfg.TRAIN.TOTAL_NUM - cfg.TRAIN.POS_NUM)]]
                 cls[i][disable_inds] = -1
 
         ##########################################
@@ -199,15 +200,17 @@ class AnchorTarget(nn.Module):
         # 不懂這個 offset 要幹嘛
         offset = torch.arange(0, batch_size) * gt_boxes.size(1)
         argmax_overlaps = argmax_overlaps + offset.view(batch_size, 1).type_as(argmax_overlaps)
-        # bbox_targets (b, N, 4)
-        # 這個操作真的好難
+        # bbox_targets: (b, N, 4)
         # gt_boxes: (b, G, 4) -> (b*G, 4) -> 
+        # 這個操作真的好難懂, IDK
         bbox_targets = bbox_transform_batch(anchors, gt_boxes.view(-1, 4)[argmax_overlaps.view(-1), :].view(batch_size, -1, 4))
 
-        pos_num = torch.sum(cls[i] == 1)
-        # if pos_num == 0:
-        #     pos_num = torch.tensor(1, dtype=torch.int64)
-        bbox_weights[cls == 1] = 1.0 / pos_num.item()       # 正樣本的 anchor 數量越少, weight 越高
+        # TODO: 這裡可以改
+        bbox_weights[cls == 1] = 1.0    # 目前效果比較好
+        # 正樣本的 anchor 數量越少, weight 越高
+        # pos_num_batch = torch.sum((cls == 1).int(), 1, dtype=torch.float32)
+        # for b in range(batch_size):
+        #     bbox_weights[b][cls[b] == 1] = 1.0 / pos_num_batch[b]
 
         cls = _unmap(cls, self.all_anchors.size(0), inds_inside, batch_size, fill=-1)
         bbox_targets = _unmap(bbox_targets, self.all_anchors.size(0), inds_inside, batch_size, fill=0)
@@ -264,17 +267,17 @@ class AnchorTarget(nn.Module):
         # ipdb.set_trace()
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-        # for idx, batch in enumerate(batch_neg):
+        # for idx, batch in enumerate(neg_batch):
         #     assert False, "You should not come in"
         #     cls[batch] = cls_neg[idx]
         #     bbox_targets[batch] = 0
         #     bbox_weights[batch] = 0
         #     max_overlaps[batch] = 0
 
-        for i in range(batch_size):
-            pos_num = (cls[i] == 1).nonzero(as_tuple=False).size()[0]
+        for b in range(batch_size):
+            pos_num = (cls[b] == 1).nonzero(as_tuple=False).size()[0]
             assert pos_num, \
-                f"No positive anchor in cls number: {i}"
+                f"ERROR, No positive anchor in batch number: {b}"
 
         return cls, bbox_targets, bbox_weights, max_overlaps
 

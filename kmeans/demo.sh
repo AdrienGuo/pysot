@@ -1,19 +1,21 @@
 # !/bin/sh
 
+part="test"  # train / test
+dataset="allOld"
+criteria="all"
 search=(255)
 crop_method="new"
-bg="1"    # 不影響結果
+bg="1"  # 不影響結果
 neg=(0.0)
-anchors=(2)
-dataset="text_new"
-criteria="above"
+anchors=(11)
 
 
-echo "search: ${search}"
-echo "crop_method: ${crop_method}"
-echo "anchors: ${anchors}"
-echo "dataset: ${dataset}"
-echo "criteria: ${criteria}"
+echo "Search: ${search}"
+echo "Crop method: ${crop_method}"
+echo "Anchors: ${anchors}"
+echo "Part": ${part}
+echo "Dataset: ${dataset}"
+echo "Criteria: ${criteria}"
 sleep 5
 
 python3 ./kmeans/demo.py \
@@ -22,7 +24,8 @@ python3 ./kmeans/demo.py \
 	--neg ${neg} \
     --anchors ${anchors} \
 	--config ./experiments/siamrpn_r50_l234_dwxcorr/config.yaml \
-	--dataset_path ./datasets/train/${dataset}/ \
+	--part ${part} \
+	--dataset_path ./datasets/${part}/${dataset}/ \
 	--dataset_name ${dataset} \
-	--criteria ${criteria}
-	# > ./kmeans/demo/${dataset}_${criteria}_${anchors}.txt
+	--criteria ${criteria} \
+	# > ./kmeans/demo/${part}/${dataset}/${criteria}/k${anchors}.txt

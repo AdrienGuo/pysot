@@ -207,9 +207,8 @@ class SiamRPNTracker(SiameseTracker):
     def init(self, z_img, z_box):
         """
         Args:
-            img(np.ndarray): BGR image
-            z_box: (x1, y1, w, h) z_box
-            template_image (batch, w, h, channel), dtype=tensor: template image that had been preprocessed
+            z_img: (BGR)
+            z_box: (x1, y1, w, h)
         """
         # self.center_pos = np.array([z_box[0] + (z_box[2] - 1) / 2,
         #                             z_box[1] + (z_box[3] - 1) / 2])
@@ -268,11 +267,11 @@ class SiamRPNTracker(SiameseTracker):
         #                             round(s_x),
         #                             self.channel_average)
 
-        outputs = self.model.track(x_img)                         # (1, 2*anchor_num, 25, 25)
+        outputs = self.model.track(x_img)  # (1, 2*anchor_num, 25, 25)
 
-        scores = self._convert_score(outputs['cls'])                     # (anchor_num*25*25, )
+        scores = self._convert_score(outputs['cls'])  # (anchor_num*25*25, )
         # pred_bboxes: (num, [cx, cy, w, h])
-        pred_bboxes = self._convert_bbox(outputs['loc'], self.anchors)    # (4, anchor_num*25*25)
+        pred_bboxes = self._convert_bbox(outputs['loc'], self.anchors)  # (4, anchor_num*25*25)
 
         ####################################################################
         # 用 box 的長寬比例來篩除 box
@@ -293,11 +292,13 @@ class SiamRPNTracker(SiameseTracker):
         r_c = change((self.size[0]/self.size[1]) /
                      (pred_bboxes[2, :]/pred_bboxes[3, :]))
         penalty = np.exp(-(r_c * s_c - 1) * cfg.TRACK.PENALTY_K)
-        pscore = penalty * scores
+        # TODO: 試試看加 penalty 的差別
+        # pscore = penalty * scores
+        pscore = scores
 
         # window penalty
-        pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
-            self.window * cfg.TRACK.WINDOW_INFLUENCE
+        # pscore = pscore * (1 - cfg.TRACK.WINDOW_INFLUENCE) + \
+        #     self.window * cfg.TRACK.WINDOW_INFLUENCE
 
         ####################################################################
         # 加 NMS
@@ -324,10 +325,10 @@ class SiamRPNTracker(SiameseTracker):
                 y1 = pred_box[1] - h / 2
                 x2 = pred_box[0] + w / 2
                 y2 = pred_box[1] + h / 2
-                if ((x1 < 0) or (y1 < 0)
-                    or (x2 > cfg.TRACK.INSTANCE_SIZE) or (y2 > cfg.TRACK.INSTANCE_SIZE)):
-                    # 捨棄超出圖片的 pred_box
-                    continue
+                # if ((x1 < 0) or (y1 < 0)
+                #     or (x2 > cfg.TRACK.INSTANCE_SIZE) or (y2 > cfg.TRACK.INSTANCE_SIZE)):
+                #     # 捨棄超出圖片的 pred_box
+                #     continue
                 top_scores.append(score)
 
                 # cx, cy, width, height = self._bbox_clip(cx, cy, width, height, x_img.shape[:2])

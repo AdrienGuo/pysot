@@ -33,7 +33,7 @@ class LRScheduler(_LRScheduler):
 
 
 class LogScheduler(LRScheduler):
-    def __init__(self, optimizer, start_lr=0.03, end_lr=5e-4,
+    def __init__(self, optimizer, start_lr=0.03 * (1), end_lr=5e-4 * (1),
                  epochs=50, last_epoch=-1, **kwargs):
         self.start_lr = start_lr
         self.end_lr = end_lr
@@ -46,7 +46,7 @@ class LogScheduler(LRScheduler):
 
 
 class StepScheduler(LRScheduler):
-    def __init__(self, optimizer, start_lr=0.01, end_lr=None,
+    def __init__(self, optimizer, start_lr=0.01 * (1), end_lr=None,
                  step=10, mult=0.1, epochs=50, last_epoch=-1, **kwargs):
         if end_lr is not None:
             if start_lr is None:

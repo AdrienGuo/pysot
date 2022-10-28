@@ -15,6 +15,7 @@ class Anchors:
     """
     This class generates anchors.
     """
+
     def __init__(self, stride, ratios, scales, image_center=0, size=0):
         self.stride = stride
         self.ratios = ratios
@@ -32,8 +33,8 @@ class Anchors:
 
     def generate_anchors(self):
         """
-        generate anchors based on predefined configuration
-        generate self.anchors: (anchor_num, 4)
+        Generate anchors based on predefined configuration
+        Generate self.anchors: (anchor_num, 4)
         """
         # self.anchors = np.zeros((self.anchor_num, 4), dtype=np.float32)
 
@@ -67,13 +68,34 @@ class Anchors:
         #      [196.81560557, 185.2864766 ]]
         # )
 
-        # === x255_new_k2_text ===
+        # === x255_new_k2_textOld ===
         # anchors_wh = np.array(
         #     [[30.492, 43.574],
         #      [53.048, 75.8  ]]
         # )
 
-        # === x255_new_k11_text ===
+        # === x255_new_k2_textOld_above ===
+        # anchors_wh = np.array(
+        #     [[ 53.226,  76.079],
+        #      [ 93.271, 133.433]]
+        # )
+
+        # === x255_new_k11_textOld_above ===
+        # anchors_wh = np.array(
+        #     [[ 56.956,  81.252],
+        #      [ 95.689, 136.976],
+        #      [ 45.996,  65.562],
+        #      [ 44.073,  65.663],
+        #      [ 49.052,  70.174],
+        #      [ 44.169,  64.801],
+        #      [ 61.867,  87.957],
+        #      [ 51.683,  73.811],
+        #      [ 46.883,  67.835],
+        #      [ 53.987,  77.035],
+        #      [ 68.1,    97.1  ]]
+        # )
+
+        # === x255_new_k11_textOld ===
         # anchors_wh = np.array(
         #     [[ 41.09,   58.793],
         #      [ 63.295,  90.11 ],
@@ -88,19 +110,13 @@ class Anchors:
         #      [ 36.647,  52.453]]
         # )
 
-        # === x255_new_k2_text_below ===
+        # === x255_new_k2_textOld_below ===
         # anchors_wh = np.array(
         #     [[37.078, 52.963],
         #      [23.795, 33.99 ]]
         # )
 
-        # === x255_new_k2_text_above ===
-        # anchors_wh = np.array(
-        #     [[ 53.226,  76.079],
-        #      [ 93.271, 133.433]]
-        # )
-
-        # === x255_new_k11_text_new ===
+        # === x255_new_k11_all ===
         # anchors_wh = np.array(
         #     [[33.525, 22.009],
         #      [ 6.134, 11.462],
@@ -115,25 +131,25 @@ class Anchors:
         #      [10.671, 17.674]]
         # )
 
-        # === x255_new_k2_text_new_above ===
+        # === x255_new_k2_all_above ===
         # anchors_wh = np.array(
         #     [[ 26.525, 98.046],
         #      [ 89.515, 29.663]]
         # )
 
-        # === x255_new_k11_text_new_above ===
+        # === x255_new_k11_all_above ===
         anchors_wh = np.array(
-            [[ 27.752, 121.838],
-             [ 49.032, 146.246],
-             [ 98.075,  33.574],
-             [ 87.368,  15.046],
-             [ 69.218,  34.698],
-             [ 13.126, 100.639],
+            [[ 20.94,  144.261],
+             [ 40.926,  71.458],
+             [ 51.19,  142.414],
+             [ 25.987, 104.606],
              [  6.962,  83.193],
-             [ 41.298,  73.748],
-             [148.276,  42.907],
-             [ 20.35,   81.537],
-             [ 32.827,  84.45 ]]
+             [ 24.893,  71.601],
+             [101.548,  47.135],
+             [ 78.211,  26.12 ],
+             [ 34.439, 127.6  ],
+             [ 15.071,  91.132],
+             [ 34.367,  92.392]]
         )
 
         # === x600_new_k11 ===
@@ -204,7 +220,7 @@ class Anchors:
         #         self.anchors[count][:] = [-w*0.5, -h*0.5, w*0.5, h*0.5][:]
         #         count += 1
 
-        print(f"anchors:\n {self.anchors}")
+        # print(f"anchors:\n {self.anchors}")
 
     def generate_all_anchors(self, im_c, size):
         """

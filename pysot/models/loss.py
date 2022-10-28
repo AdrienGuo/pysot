@@ -29,6 +29,8 @@ def select_cross_entropy_loss(pred, label):
 
 
 def weight_l1_loss(pred_loc, label_loc, loss_weight):
+    """ TODO: 這應該還不是 smooth L1 loss 吧！？
+    """
     b, _, sh, sw = pred_loc.size()
     pred_loc = pred_loc.view(b, 4, -1, sh, sw)
     diff = (pred_loc - label_loc).abs()

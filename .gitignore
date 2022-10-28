@@ -8,6 +8,7 @@ pysot/datasets/adrien.code-workspace
 training_dataset/vid/vid.json
 
 datasets/
+!pysot/datasets/
 training_dataset/vid/ILSVRC2015*
 testing_dataset/
 croped_image/
