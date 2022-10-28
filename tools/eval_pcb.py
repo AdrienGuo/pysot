@@ -15,7 +15,6 @@ import torch
 import torchvision.transforms.functional as F
 from PIL import Image, ImageDraw, ImageFont
 from pysot.core.config import cfg
-# === 這裡選擇要老師 or 亭儀的裁切出來的資料集 ===
 from pysot.datasets.pcbdataset_new import PCBDataset
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
@@ -23,7 +22,6 @@ from pysot.utils.bbox import get_axis_aligned_bbox
 from pysot.utils.check_image import draw_preds, save_image
 from pysot.utils.model_load import load_pretrain
 from toolkit.datasets import DatasetFactory
-from toolkit.utils.region import vot_float2str, vot_overlap
 from toolkit.utils.statistics import overlap_ratio_one
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
@@ -39,7 +37,9 @@ parser.add_argument('--batch_size', type=int, help='batch size')
 parser.add_argument('--dataset_path', type=str, help='training dataset path')
 parser.add_argument('--dataset_name', type=str, help='training dataset name')
 parser.add_argument('--criteria', type=str, help='sample criteria for dataset')
+parser.add_argument('--bk', type=str, help='whether use pretrained backbone')
 parser.add_argument('--cfg', type=str, default='config.yaml', help='configuration of tracking')
+parser.add_argument('--test_dataset', type=str, help='testing dataset path')
 parser.add_argument('--seed', type=int, default=123456, help='random seed')
 parser.add_argument('--local_rank', type=int, default=0, help='compulsory for pytorch launcer')
 args = parser.parse_args()
@@ -85,7 +85,10 @@ def calculate_metrics(pred_scores, pred_boxes, label_boxes):
         fp.append(fp_one_sum)
         boxes_num.append(boxes_one_num)
 
-    precision = sum(tp) / (sum(tp) + sum(fp))
+    if (sum(tp) + sum(fp) == 0):
+        precision = 0
+    else:
+        precision = sum(tp) / (sum(tp) + sum(fp))
     recall = sum(tp) / sum(boxes_num)
 
     return precision, recall
@@ -100,6 +103,7 @@ def evaluate(test_loader, tracker):
 
     clocks = 0
     period = 0
+    idx = 0
 
     with torch.no_grad():
         for idx, data in enumerate(test_loader):
@@ -160,7 +164,7 @@ def evaluate(test_loader, tracker):
         print(f"recall: {recall * 100}")
 
         # period = clocks / cv2.getTickFrequency()
-        fps = idx / period
+        fps = (idx + 1) / period
         print(f"Speed: {fps} fps")
 
         return {

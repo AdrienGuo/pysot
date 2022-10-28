@@ -5,7 +5,6 @@ from __future__ import (absolute_import, annotations, division, print_function,
 import argparse
 import os
 import re
-from unicodedata import decimal
 
 import cv2
 import ipdb
@@ -14,8 +13,8 @@ import numpy as np
 import torch
 import torchvision.transforms.functional as F
 from pysot.core.config import cfg
-# === 這裡選擇要老師 or 亭儀的裁切出來的資料集 ===
-from pysot.datasets.pcbdataset_new import PCBDataset
+# new / tri
+from pysot.datasets.pcbdataset_tri import PCBDataset
 from pysot.models.model_builder import ModelBuilder
 from pysot.tracker.tracker_builder import build_tracker
 from pysot.utils.bbox import get_axis_aligned_bbox
@@ -32,6 +31,7 @@ parser.add_argument('--model', default='', type=str, help='model of models to ev
 parser.add_argument('--crop_method', default='', type=str, help='teacher / amy')
 parser.add_argument('--bg', type=str, nargs='?', const='', help='background')
 parser.add_argument('--neg', type=float, help='negative sample ratio')
+parser.add_argument('--part', type=str, help='train / test')
 parser.add_argument('--dataset_name', type=str, help='datasets name')
 parser.add_argument('--dataset_path', type=str, help='datasets path')
 parser.add_argument('--criteria', type=str, help='sample criteria for dataset')
@@ -44,6 +44,7 @@ torch.set_num_threads(1)
 
 def test(test_loader, tracker, dir):
     clocks = 0
+    idx = 0
     for idx, data in enumerate(test_loader):
         # only one data in a batch (batch_size=1)
         img_path = data['img_path'][0]
@@ -207,7 +208,7 @@ def test(test_loader, tracker, dir):
         # draw the gt boxes
         ##########################################
         # === gt_boxes on "search" image ===
-        x_img = draw_box(x_img, gt_boxes, type="gt")
+        # x_img = draw_box(x_img, gt_boxes, type="gt")
 
         ##########################################
         # draw the pred boxes
@@ -232,7 +233,7 @@ def test(test_loader, tracker, dir):
         # ipdb.set_trace()
 
     period = clocks / cv2.getTickFrequency()
-    fps = idx / period
+    fps = (idx + 1) / period
     print(f"Speed: {fps} fps")
 
 

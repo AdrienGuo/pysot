@@ -48,11 +48,11 @@ parser.add_argument('--batch_size', type=int, help='batch size')
 parser.add_argument('--dataset_path', type=str, help='training dataset path')
 parser.add_argument('--dataset_name', type=str, help='training dataset name')
 parser.add_argument('--criteria', type=str, help='sample criteria for dataset')
+parser.add_argument('--bk', type=str, help='whether use pretrained backbone')
 parser.add_argument('--cfg', type=str, default='config.yaml', help='configuration of tracking')
+parser.add_argument('--test_dataset', type=str, help='testing dataset path')
 parser.add_argument('--seed', type=int, default=123456, help='random seed')
 parser.add_argument('--local_rank', type=int, default=0, help='compulsory for pytorch launcer')
-# parser.add_argument('--template_bg', type=str, default='', help='whether crop template with bg')
-# parser.add_argument('--template_context_amount', type=int, default='', help='how much bg for template')
 args = parser.parse_args()
 
 
@@ -71,13 +71,14 @@ def build_loader(validation_split, random_seed):
     train_dataset = PCBDataset(args, "train")
     val_dataset = PCBDataset(args, "val")
     eval_dataset = PCBDataset(args, "eval")
+    test_dataset = PCBDataset(args, "test")
     logger.info("Build dataset done")
 
     # split train & val dataset
     dataset_size = len(train_dataset)
     indices = list(range(dataset_size))
     random.seed(random_seed)
-    # random.shuffle(indices)
+    random.shuffle(indices)
     split = dataset_size - int(np.floor(validation_split * dataset_size))
     train_indices, val_indices = indices[:split], indices[split:]
     train_dataset = Subset(train_dataset, train_indices)
@@ -87,7 +88,7 @@ def build_loader(validation_split, random_seed):
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Val dataset size: {len(val_dataset)}")
-    assert len(train_dataset) != 0, "Error, there is no data for training."
+    assert len(train_dataset) != 0, "ERROR, there is no data for training."
 
     # train_sampler = None
     # if get_world_size() > 1:
@@ -120,8 +121,16 @@ def build_loader(validation_split, random_seed):
         pin_memory=True,
     )
 
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=1,
+        num_workers=cfg.TRAIN.NUM_WORKERS,
+        pin_memory=True
+    )
+
     return train_loader, val_loader, \
-        train_eval_loader, val_eval_loader
+        train_eval_loader, val_eval_loader, \
+        test_loader
 
 
 def build_opt_lr(model, current_epoch=0):
@@ -211,6 +220,7 @@ def train(
     val_loader,
     train_eval_loader,
     val_eval_loader,
+    test_loader,
     model,
     optimizer,
     lr_scheduler,
@@ -240,14 +250,13 @@ def train(
 
     for epoch in range(args.epoch):
         # one epoch
-        fake_epoch = epoch + 1
-        print(f"epoch: {fake_epoch}")
-        logger.info('epoch: {}'.format(fake_epoch))
+        print(f"epoch: {epoch + 1}")
+        logger.info('epoch: {}'.format(epoch))
         # Start training backbone at epoch: n,
         # 他是把 backbone model 的 params 變成 requires_grad=True
-        if cfg.BACKBONE.TRAIN_EPOCH == fake_epoch:
+        if cfg.BACKBONE.TRAIN_EPOCH == epoch + 1:
             logger.info('start training backbone.')
-            optimizer, lr_scheduler = build_opt_lr(model.module, fake_epoch)
+            optimizer, lr_scheduler = build_opt_lr(model.module, epoch)
         cur_lr = lr_scheduler.get_cur_lr()
 
         train_loss = dict(cls=0.0, loc=0.0, total=0.0)
@@ -301,74 +310,83 @@ def train(
 
         lr_scheduler.step()
 
-        train_loss['cls'] = train_loss['cls'] / len(train_loader)
-        train_loss['loc'] = train_loss['loc'] / len(train_loader)
-        train_loss['total'] = train_loss['total'] / len(train_loader)
+        train_loss = {key: value / len(train_loader) for key, value in train_loss.items()}
         print("--- Train ---")
         print(f"cls_loss: {train_loss['cls']:<6.3f} | loc_loss: {train_loss['loc']:<6.3f} | total_loss: {train_loss['total']:<6.3f}")
 
-        tmp_model_path = os.path.join("./tmp_model", "tmp_model.pth")
-        torch.save({
-            'epoch': fake_epoch,
-            'state_dict': model.module.state_dict(),
-            'optimizer': optimizer.state_dict()
-        }, tmp_model_path)
-        print(f"Save tmp_model: {tmp_model_path}")
+        ##########################################
+        # Validation
+        ##########################################
+        # for idx, data in enumerate(val_loader):
+        #     with torch.no_grad():
+        #         outputs = model(data)
 
-        eval_model = ModelBuilder()
-        eval_model = load_pretrain(eval_model, tmp_model_path).cuda().eval()
-        tracker = build_tracker(eval_model)
+        #     batch_cls_loss = outputs['cls_loss']
+        #     batch_loc_loss = outputs['loc_loss']
+        #     batch_total_loss = outputs['total_loss']
+        #     val_loss['cls'] += batch_cls_loss
+        #     val_loss['loc'] += batch_loc_loss
+        #     val_loss['total'] += batch_total_loss
 
-        logger.info("Start train evaluating")
-        train_metrics = evaluate(train_eval_loader, tracker)
+        # val_loss = {key: value / len(train_loader) for key, value in val_loss.items()}
+        # print("--- Validation ---")
+        # print(f"cls_loss: {val_loss['cls']:<6.3f} | loc_loss: {val_loss['loc']:<6.3f} | total_loss: {val_loss['total']:<6.3f}")
 
         ##########################################
-        # Validating
+        # Evaluating
         ##########################################
-        model.eval()
-        for idx, data in enumerate(val_loader):
-            with torch.no_grad():
-                outputs = model(data)
+        if (epoch + 1) % cfg.TRAIN.EVAL_FREQ == 0:
+            dummy_model_name = "dummy_model"
+            dummy_model_path = os.path.join("./save_models/dummy_model", f"{dummy_model_name}.pth")
+            torch.save({
+                'epoch': epoch,
+                'state_dict': model.module.state_dict(),
+                'optimizer': optimizer.state_dict()
+            }, dummy_model_path)
+            print(f"Save dummy_model: {dummy_model_path}")
 
-            batch_cls_loss = outputs['cls_loss']
-            batch_loc_loss = outputs['loc_loss']
-            batch_total_loss = outputs['total_loss']
-            val_loss['cls'] += batch_cls_loss
-            val_loss['loc'] += batch_loc_loss
-            val_loss['total'] += batch_total_loss
+            # Create tracker model
+            eval_model = ModelBuilder()
+            eval_model = load_pretrain(eval_model, dummy_model_path).cuda().eval()
+            tracker = build_tracker(eval_model)
 
-        val_loss['cls'] = val_loss['cls'] / len(val_loader)
-        val_loss['loc'] = val_loss['loc'] / len(val_loader)
-        val_loss['total'] = val_loss['total'] / len(val_loader)
-        print("--- Validation ---")
-        print(f"cls_loss: {val_loss['cls']:<6.3f} | loc_loss: {val_loss['loc']:<6.3f} | total_loss: {val_loss['total']:<6.3f}")
+            logger.info("Train evaluating")
+            train_metrics = evaluate(train_eval_loader, tracker)
 
-        logger.info("Start validation evaluating")
-        val_metrics = evaluate(val_eval_loader, tracker)
+            # logger.info("Validation evaluating")
+            # val_metrics = evaluate(val_eval_loader, tracker)
+
+            logger.info("Test evaluating")
+            test_metrics = evaluate(test_loader, tracker)
+
+            wandb.log({
+                "train_metrics": {
+                    "precision": train_metrics['precision'],
+                    "recall": train_metrics['recall']
+                },
+                # "val_metrics": {
+                #     "precision": val_metrics['precision'],
+                #     "recall": val_metrics['recall']
+                # },
+                "test_metrics": {
+                    "precision": test_metrics['precision'],
+                    "recall": test_metrics['recall']
+                }
+            }, commit=False)
 
         wandb.log({
             "train": {
                 "cls_loss": train_loss['cls'],
                 "loc_loss": train_loss['loc'],
-                "total_loss": train_loss['total'],
-                "precision": train_metrics['precision'],
-                "recall": train_metrics['recall']
+                "total_loss": train_loss['total']
             },
-            "val": {
-                "cls_loss": val_loss['cls'],
-                "loc_loss": val_loss['loc'],
-                "total_loss": val_loss['total'],
-                "precision": val_metrics['precision'],
-                "recall": val_metrics['recall']
-            },
-            "epoch": fake_epoch
-            # "train_cls_loss": train_loss['cls'],
-            # "train_loc_loss": train_loss['loc'],
-            # "train_total_loss": train_loss['total'],
-            # "val_cls_loss": val_loss['cls'],
-            # "val_loc_loss": val_loss['loc'],
-            # "val_total_loss": val_loss['total']
-        })
+            # "val": {
+            #     "cls_loss": val_loss['cls'],
+            #     "loc_loss": val_loss['loc'],
+            #     "total_loss": val_loss['total']
+            # },
+            "epoch": epoch + 1
+        }, commit=True)
 
         batch_time = time.time() - end
         batch_info = {}
@@ -379,37 +397,18 @@ def train(
 
         average_meter.update(**batch_info)
 
-        # if rank == 0:
-        #     # for k, v in batch_info.items():
-        #     #     tb_writer.add_scalar(k, v, tb_idx)
-        #     if (idx+1) % cfg.TRAIN.PRINT_FREQ == 0:
-        #         info = "Epoch: [{}][{}/{}] lr: {:.6f}\n".format(
-        #                     epoch, (idx+1) % num_per_epoch,
-        #                     num_per_epoch, cur_lr)
-        #         for cc, (k, v) in enumerate(batch_info.items()):
-        #             if cc % 2 == 0:
-        #                 info += ("\t{:s}\t").format(
-        #                         getattr(average_meter, k))
-        #             else:
-        #                 info += ("{:s}\n").format(
-        #                         getattr(average_meter, k))
-        #         logger.info(info)
-        #         print_speed(idx+1+start_epoch*num_per_epoch,
-        #                     average_meter.batch_time.avg,
-        #                     args.epoch * num_per_epoch)
-
         ##########################################
         # Save model
         ##########################################
-        if get_rank() == 0 and fake_epoch % cfg.TRAIN.SAVE_MODEL_FREQ == 0:
-            # Save model path
-            model_path = os.path.join(model_dir, f"model_e{fake_epoch}.pth")
-            torch.save({
-                'epoch': fake_epoch,
-                'state_dict': model.module.state_dict(),
-                'optimizer': optimizer.state_dict()
-            }, model_path)
-            print(f"Save model to: {model_path}")
+        # if (get_rank() == 0) and ((epoch + 1) % cfg.TRAIN.SAVE_MODEL_FREQ == 0):
+        #     # Save model path
+        #     model_path = os.path.join(model_dir, f"model_e{epoch + 1}.pth")
+        #     torch.save({
+        #         'epoch': epoch + 1,
+        #         'state_dict': model.module.state_dict(),
+        #         'optimizer': optimizer.state_dict()
+        #     }, model_path)
+        #     print(f"Save model to: {model_path}")
 
         end = time.time()
 
@@ -434,7 +433,7 @@ def main():
         # logger.info("config \n{}".format(json.dumps(cfg, indent=4)))
 
     # build dataset loader
-    train_loader, val_loader, train_eval_loader, val_eval_loader \
+    train_loader, val_loader, train_eval_loader, val_eval_loader, test_loader \
         = build_loader(cfg.DATASET.VALIDATION_SPLIT, random_seed=42)
 
     # create model
@@ -474,33 +473,41 @@ def main():
     # Create save model directory
     model_dir = os.path.join(
         cfg.TRAIN.MODEL_DIR,
-        f"{args.dataset_name}_{args.criteria}",
-        f"x{cfg.TRAIN.SEARCH_SIZE}_{args.crop_method}_bg{args.bg}_{args.dataset_name}_{args.criteria}_k{args.anchors}_neg{args.neg}_e{args.epoch}_b{args.batch_size}"
+        f"{args.dataset_name}",
+        f"{args.criteria}",
+        f"{args.dataset_name}_{args.criteria}_{args.bk}_neg{args.neg}_k{args.anchors}_x{cfg.TRAIN.SEARCH_SIZE}_{args.crop_method}_bg{args.bg}_e{args.epoch}_b{args.batch_size}"
     )
-    create_dir(model_dir)
+    # create_dir(model_dir)
+    print(f"Save model to dir: {model_dir}")
 
     # Start training
-    train(train_loader, val_loader, train_eval_loader, val_eval_loader, dist_model, optimizer, lr_scheduler, tb_writer, model_dir)
+    train(train_loader, val_loader, train_eval_loader, val_eval_loader, test_loader, dist_model, optimizer, lr_scheduler, tb_writer, model_dir)
 
 
 if __name__ == '__main__':
     seed_torch(args.seed)
 
-    # constants = {
-    #     "anchor": args.anchors,
-    #     "score_size": cfg.TRAIN.OUTPUT_SIZE,
-    #     "dataset": f"{args.dataset_name}_{args.criteria}",
-    #     "epochs": args.epoch,
-    #     "batch_size": args.batch_size,
-    #     "lr": cfg.TRAIN.BASE_LR,
-    #     "weight_decay": cfg.TRAIN.WEIGHT_DECAY,
-    #     "neg": True
-    # }
-    # wandb.init(
-    #     project="SiamRPN++",
-    #     entity="adrien88",
-    #     name=f"x{cfg.TRAIN.SEARCH_SIZE}_{args.crop_method}_bg{args.bg}_{args.dataset_name}_{args.criteria}_k{args.anchors}_neg{args.neg}_e{args.epoch}_b{args.batch_size}",
-    #     config=constants
-    # )
+    constants = {
+        "dataset": args.dataset_name,
+        "criteria": args.criteria,
+        "backbone": args.bk,
+        "backbone_train": cfg.BACKBONE.TRAIN_EPOCH,
+        "neg": args.neg,
+        "anchor": args.anchors,
+        "search": cfg.TRAIN.SEARCH_SIZE,
+        "crop_method": args.crop_method,
+        "background": args.bg,
+        "epochs": args.epoch,
+        "batch_size": args.batch_size,
+        "lr": cfg.TRAIN.BASE_LR,
+        "weight_decay": cfg.TRAIN.WEIGHT_DECAY,
+    }
+
+    wandb.init(
+        project="SiamRPN++",
+        entity="adrien88",
+        name=f"{args.dataset_name}_{args.criteria}_{args.bk}_neg{args.neg}_k{args.anchors}_x{cfg.TRAIN.SEARCH_SIZE}_{args.crop_method}_bg{args.bg}_e{args.epoch}_b{args.batch_size}",
+        config=constants
+    )
 
     main()

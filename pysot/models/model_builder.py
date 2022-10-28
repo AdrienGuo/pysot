@@ -91,9 +91,9 @@ class ModelBuilder(nn.Module):
         Args:
             只需要傳入 gt，label_cls, label_loc 在這裡面算
         """
-        ####################################################################
+        ##########################################
         # 拿資料
-        ####################################################################
+        ##########################################
         z_img = data['z_img'].cuda()
         x_img = data['x_img'].cuda()
         gt_boxes_padding = data['gt_boxes_padding'].cuda()
@@ -102,9 +102,9 @@ class ModelBuilder(nn.Module):
         img_name = data['img_name'][0]
         idx = data['idx'][0]
 
-        ####################################################################
-        # get labels of cls, loc, weight
-        ####################################################################
+        ##########################################
+        # Get labels of cls, loc, weight
+        ##########################################
         label_cls, label_loc, label_loc_weight, _ = self.anchor_target(
             gt_boxes_padding,
             self.output_size,
@@ -113,9 +113,9 @@ class ModelBuilder(nn.Module):
             idx=idx
         )
 
-        ####################################################################
-        # get feature maps
-        ####################################################################
+        ##########################################
+        # Get feature maps
+        ##########################################
         # out = [out[i] for i in self.used_layers]
         zf = self.backbone(z_img)
         xf = self.backbone(x_img)
@@ -127,15 +127,15 @@ class ModelBuilder(nn.Module):
             zf = self.neck(zf)    # ((b, c, 7, 7), (), ) #list
             xf = self.neck(xf)    # ((b, c, 31, 31), (), ) #list
 
-        ####################################################################
-        # get preds of cls, loc
-        ####################################################################
+        ##########################################
+        # Get preds of cls, loc
+        ##########################################
         # cls: (b, 10, 25, 25), loc: (b, 20, 25, 25)
         cls, loc = self.rpn_head(zf, xf)
 
-        ####################################################################
-        # calculate loss of cls, loc
-        ####################################################################
+        ##########################################
+        # Calculate loss of cls, loc
+        ##########################################
         cls = self.log_softmax(cls)     # cls: (b, 5, 25, 25, 2)
         cls_loss = select_cross_entropy_loss(cls, label_cls)
         loc_loss = weight_l1_loss(loc, label_loc, label_loc_weight)

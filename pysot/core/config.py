@@ -57,7 +57,7 @@ __C.TRAIN.PRETRAINED = ''
 __C.TRAIN.LOG_DIR = './logs'
 __C.TRAIN.MODEL_DIR = './save_models'
 __C.TRAIN.NUM_WORKERS = 0
-__C.TRAIN.SAVE_MODEL_FREQ = 20
+__C.TRAIN.SAVE_MODEL_FREQ = 50
 
 __C.TRAIN.START_EPOCH = 0
 # __C.TRAIN.EPOCH = 100
@@ -71,6 +71,7 @@ __C.TRAIN.LOC_WEIGHT = 1.2
 __C.TRAIN.MASK_WEIGHT = 1
 
 __C.TRAIN.PRINT_FREQ = 20
+__C.TRAIN.EVAL_FREQ = 20
 
 __C.TRAIN.LOG_GRADS = False
 
@@ -100,7 +101,7 @@ __C.TRAIN.LR_WARMUP.KWARGS = CN(new_allowed=True)
 __C.DATASET = CN(new_allowed=True)
 
 # validation_split ratio
-__C.DATASET.VALIDATION_SPLIT = 0.1
+__C.DATASET.VALIDATION_SPLIT = 0.0
 
 # Augmentation
 # for template
@@ -170,12 +171,15 @@ __C.BACKBONE = CN()
 
 # Backbone type, current only support resnet18,34,50;alexnet;mobilenet
 __C.BACKBONE.TYPE = 'res50'
+# __C.BACKBONE.TYPE = 'res18'
 
 __C.BACKBONE.KWARGS = CN(new_allowed=True)
 
-# Pretrained backbone weights
+# --- Pretrained backbone weights ---
+# (沒有 pretrained backbone 完全 train 不起來)
 # __C.BACKBONE.PRETRAINED = ''
 __C.BACKBONE.PRETRAINED = './pretrained_models/resnet50.model'
+# __C.BACKBONE.PRETRAINED = './pretrained_models/resnet18.pth'
 
 # Train layers
 __C.BACKBONE.TRAIN_LAYERS = ['layer2', 'layer3', 'layer4']
@@ -184,7 +188,7 @@ __C.BACKBONE.TRAIN_LAYERS = ['layer2', 'layer3', 'layer4']
 __C.BACKBONE.LAYERS_LR = 0.1
 
 # Switch to train layer
-__C.BACKBONE.TRAIN_EPOCH = 20
+__C.BACKBONE.TRAIN_EPOCH = 200
 
 # ------------------------------------------------------------------------ #
 # Adjust layer options
