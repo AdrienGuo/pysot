@@ -9,7 +9,7 @@ import ipdb
 import numpy as np
 from pysot.core.config import cfg
 from pysot.utils.anchor import Anchors
-from pysot.pysot.utils._bbox import IoU, corner2center, target_delta, target_overlaps
+from pysot.utils.bbox import IoU, corner2center, target_delta, target_overlaps
 from pysot.utils.check_image import draw_box, save_image
 
 DEBUG = cfg.DEBUG

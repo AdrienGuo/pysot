@@ -14,13 +14,13 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from pysot.pysot.utils._bbox import center2corner, Center
-from pysot.pysot.datasets._anchor_target import AnchorTarget
-from pysot.pysot.datasets._augmentation import Augmentation
+from pysot.utils.bbox import center2corner, Center
+from pysot.datasets._anchor_target import AnchorTarget
+from pysot.datasets.augmentation_official import Augmentation
 from pysot.core.config import cfg
 
 
-import pysot.pysot.utils.check_image as check_image
+from pysot.utils.check_image import draw_box
 from torch.utils.data import DataLoader
 import ipdb
 
@@ -284,23 +284,27 @@ class TrkDataset(Dataset):
                                        gray=gray)
 
         # 畫圖
-        save_dir = "../../image_check/official/"
+        save_dir = "./image_check/official/"
         template_name = os.path.join(template_name.split('/')[-2], template_name.split('/')[-1][:-4]).replace('/', '_')
         search_name = os.path.join(search_name.split('/')[-2], search_name.split('/')[-1][:-4]).replace('/', '_')
         print(f"template name: {template_name}")
         print(f"search name: {search_name}")
         template_path = os.path.join(save_dir, "template", template_name + ".jpg")
         search_path = os.path.join(save_dir, "search", search_name + ".jpg")
-        bbox_path = os.path.join(save_dir, "bbox", search_name + ".jpg")
         print(f"template path: {template_path}")
-        print(f"search path: {search_path}")
         cv2.imwrite(template_path, template)
+
+        bbox_path = os.path.join(save_dir, "bbox", search_name + ".jpg")
+        print(f"search path: {search_path}")
+        bbox_copy = np.array(bbox)
+        bbox_copy = bbox_copy[np.newaxis, :]
+        bbox_copy[:, 2] = bbox_copy[:, 2] - bbox_copy[:, 0]  # w -> x2
+        bbox_copy[:, 3] = bbox_copy[:, 3] - bbox_copy[:, 1]  # h -> x1
+        search = draw_box(search, bbox_copy, type="gt")
         cv2.imwrite(search_path, search)
 
-        print(f"bbox: {bbox}")
-        check_image.draw_bbox(search, bbox, bbox_path)
-
         ipdb.set_trace()
+
 
         # get labels
         cls, delta, delta_weight, overlap = self.anchor_target(
